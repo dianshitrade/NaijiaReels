@@ -1,0 +1,2150 @@
+openapi: 3.1.0
+info:
+  title: NaijaReels API
+  version: 0.1.0
+  description: >-
+    All responses use {code,message,data}; code=0 means success. Amounts in kobo (integer); coins integer fields end
+    with Coins.
+  contact:
+    name: NaijaReels Backend
+servers:
+  - url: http://localhost:3000
+  - url: http://localhost:4010
+    description: Prism mock
+tags:
+  - name: auth
+    description: auth APIs
+  - name: content
+    description: content APIs
+  - name: play
+    description: play APIs
+  - name: trade
+    description: trade APIs
+  - name: ops
+    description: ops APIs
+  - name: webhooks
+    description: webhooks APIs
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/auth/guest:
+    post:
+      tags:
+        - auth
+      operationId: authGuest
+      summary: authGuest
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - deviceId
+              properties:
+                deviceId:
+                  type: string
+                platform:
+                  type: string
+                  enum:
+                    - android
+                    - ios
+                    - web
+                appVersion:
+                  type: string
+            example:
+              deviceId: a1b2c3d4
+              platform: android
+              appVersion: 1.0.0
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Tokens'
+              example:
+                code: 0
+                message: ok
+                data:
+                  accessToken: eyJhbGciOiJIUzI1NiJ9.access
+                  refreshToken: eyJhbGciOiJIUzI1NiJ9.refresh
+                  expiresIn: 7200
+                  user:
+                    id: u_1
+                    nickname: Guest_8f2a
+                    guest: true
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40001
+                message: Validation failed
+                data: null
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 42901
+                message: Too many requests
+                data: null
+      description: authGuest
+  /api/v1/auth/bind:
+    post:
+      tags:
+        - auth
+      operationId: authBind
+      summary: authBind
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - provider
+                - credential
+              properties:
+                provider:
+                  type: string
+                  enum:
+                    - google
+                    - phone
+                    - email
+                credential:
+                  type: string
+                code:
+                  type: string
+            example:
+              provider: google
+              credential: google-id-token
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Tokens'
+              example:
+                code: 0
+                message: ok
+                data:
+                  accessToken: eyJhbGciOiJIUzI1NiJ9.access
+                  refreshToken: eyJhbGciOiJIUzI1NiJ9.refresh
+                  expiresIn: 7200
+                  user:
+                    id: u_1
+                    nickname: Ada
+                    guest: false
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '409':
+          description: Account already bound
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40901
+                message: Account already bound
+                data: null
+      description: authBind
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - auth
+      operationId: authRefresh
+      summary: authRefresh
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+            example:
+              refreshToken: eyJhbGciOiJIUzI1NiJ9.refresh
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Tokens'
+              example:
+                code: 0
+                message: ok
+                data:
+                  accessToken: eyJhbGciOiJIUzI1NiJ9.access
+                  refreshToken: eyJhbGciOiJIUzI1NiJ9.refresh
+                  expiresIn: 7200
+                  user:
+                    id: u_1
+                    nickname: Guest_8f2a
+                    guest: true
+        '401':
+          description: Refresh token invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40102
+                message: Refresh token invalid
+                data: null
+      description: authRefresh
+  /api/v1/home:
+    get:
+      tags:
+        - content
+      operationId: getHome
+      summary: getHome
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      banners:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Drama'
+                      sections:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            title:
+                              type: string
+                            items:
+                              type: array
+                              items:
+                                $ref: '#/components/schemas/Drama'
+              example:
+                code: 0
+                message: ok
+                data:
+                  banners:
+                    - id: dr_1
+                      title: Lagos Love Story
+                      coverUrl: https://cdn.example.com/c/dr_1.jpg
+                      tags:
+                        - romance
+                      episodeCount: 60
+                      description: A Lagos romance.
+                  sections:
+                    - title: Trending
+                      items:
+                        - id: dr_1
+                          title: Lagos Love Story
+                          coverUrl: https://cdn.example.com/c/dr_1.jpg
+                          tags:
+                            - romance
+                          episodeCount: 60
+                          description: A Lagos romance.
+      description: getHome
+  /api/v1/dramas:
+    get:
+      tags:
+        - content
+      operationId: listDramas
+      summary: listDramas
+      security: []
+      parameters:
+        - name: tag
+          in: query
+          schema:
+            type: string
+          example: romance
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                      - items
+                      - page
+                      - size
+                      - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Drama'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                    - id: dr_1
+                      title: Lagos Love Story
+                      coverUrl: https://cdn.example.com/c/dr_1.jpg
+                      tags:
+                        - romance
+                      episodeCount: 60
+                      description: A Lagos romance.
+                  page: 1
+                  size: 20
+                  hasMore: false
+      description: listDramas
+  /api/v1/dramas/{id}:
+    get:
+      tags:
+        - content
+      operationId: getDrama
+      summary: getDrama
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: dr_1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/DramaDetail'
+              example:
+                code: 0
+                message: ok
+                data:
+                  id: dr_1
+                  title: Lagos Love Story
+                  coverUrl: https://cdn.example.com/c/dr_1.jpg
+                  tags:
+                    - romance
+                  episodeCount: 60
+                  description: A Lagos romance.
+                  episodes:
+                    - id: ep_1001
+                      episodeNo: 1
+                      title: Episode 1
+                      durationSec: 90
+                      free: true
+                      locked: false
+                      priceCoins: 0
+                    - id: ep_1010
+                      episodeNo: 10
+                      title: Episode 10
+                      durationSec: 95
+                      free: false
+                      locked: true
+                      priceCoins: 30
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
+      description: getDrama
+  /api/v1/search:
+    get:
+      tags:
+        - content
+      operationId: search
+      summary: search
+      security: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          example: love
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                      - items
+                      - page
+                      - size
+                      - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Drama'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                    - id: dr_1
+                      title: Lagos Love Story
+                      coverUrl: https://cdn.example.com/c/dr_1.jpg
+                      tags:
+                        - romance
+                      episodeCount: 60
+                      description: A Lagos romance.
+                  page: 1
+                  size: 20
+                  hasMore: false
+      description: search
+  /api/v1/episodes/{id}/play:
+    get:
+      tags:
+        - play
+      operationId: playEpisode
+      summary: playEpisode
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ep_1001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                      - hlsUrl
+                      - expiresAt
+                    properties:
+                      hlsUrl:
+                        type: string
+                      expiresAt:
+                        type: string
+                        format: date-time
+              example:
+                code: 0
+                message: ok
+                data:
+                  hlsUrl: https://media.example.com/media/dr_1/1/index.m3u8?sig=abc&exp=1793232000
+                  expiresAt: '2026-10-29T02:00:00Z'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '403':
+          description: Episode locked
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/LockedInfo'
+              example:
+                code: 40301
+                message: Episode locked
+                data:
+                  priceCoins: 30
+                  vipAvailable: true
+                  adAvailable: true
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
+      description: playEpisode
+  /api/v1/episodes/{id}/unlock:
+    post:
+      tags:
+        - play
+      operationId: unlockEpisode
+      summary: unlockEpisode
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ep_1001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - method
+              properties:
+                method:
+                  type: string
+                  enum:
+                    - coin
+                    - ad
+                    - vip
+                adRewardToken:
+                  type: string
+                  description: Required when method=ad
+            example:
+              method: coin
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      episodeId:
+                        type: string
+                      method:
+                        type: string
+                      balanceCoins:
+                        type: integer
+              example:
+                code: 0
+                message: ok
+                data:
+                  episodeId: ep_1010
+                  method: coin
+                  balanceCoins: 90
+        '400':
+          description: adRewardToken required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40002
+                message: adRewardToken required
+                data: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '402':
+          description: Insufficient coins
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40201
+                message: Insufficient coins
+                data: null
+      description: unlockEpisode
+  /api/v1/wallet:
+    get:
+      tags:
+        - trade
+      operationId: getWallet
+      summary: getWallet
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Wallet'
+              example:
+                code: 0
+                message: ok
+                data:
+                  balanceCoins: 120
+                  bonusCoins: 20
+                  vipUntil: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+      description: getWallet
+  /api/v1/products:
+    get:
+      tags:
+        - trade
+      operationId: listProducts
+      summary: listProducts
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+              example:
+                code: 0
+                message: ok
+                data:
+                  - id: p_coins_100
+                    type: coins
+                    title: 100 Coins
+                    amountKobo: 50000
+                    coins: 100
+                    bonusCoins: 10
+                    playProductId: coins_100
+      description: listProducts
+  /api/v1/orders:
+    post:
+      tags:
+        - trade
+      operationId: createOrder
+      summary: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - productId
+                - channel
+              properties:
+                productId:
+                  type: string
+                channel:
+                  type: string
+                  enum:
+                    - play
+                    - paystack
+            example:
+              productId: p_coins_100
+              channel: paystack
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Order'
+              example:
+                code: 0
+                message: ok
+                data:
+                  id: ord_1
+                  productId: p_coins_100
+                  channel: paystack
+                  status: pending
+                  amountKobo: 50000
+                  coins: 100
+                  createdAt: '2026-10-29T00:00:00Z'
+                  paystackAuthorizationUrl: https://checkout.paystack.com/abc
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
+      description: createOrder
+    get:
+      tags:
+        - trade
+      operationId: listOrders
+      summary: listOrders
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                      - items
+                      - page
+                      - size
+                      - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Order'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                    - id: ord_1
+                      productId: p_coins_100
+                      channel: paystack
+                      status: pending
+                      amountKobo: 50000
+                      coins: 100
+                      createdAt: '2026-10-29T00:00:00Z'
+                      paystackAuthorizationUrl: https://checkout.paystack.com/abc
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+      description: listOrders
+  /api/v1/orders/play/verify:
+    post:
+      tags:
+        - trade
+      operationId: verifyPlayOrder
+      summary: verifyPlayOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - orderId
+                - purchaseToken
+                - productId
+              properties:
+                orderId:
+                  type: string
+                purchaseToken:
+                  type: string
+                productId:
+                  type: string
+            example:
+              orderId: ord_1
+              purchaseToken: play-token
+              productId: coins_100
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Order'
+              example:
+                code: 0
+                message: ok
+                data:
+                  id: ord_1
+                  productId: p_coins_100
+                  channel: play
+                  status: paid
+                  amountKobo: 50000
+                  coins: 100
+                  createdAt: '2026-10-29T00:00:00Z'
+                  paystackAuthorizationUrl: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '422':
+          description: Purchase verification failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 42201
+                message: Purchase verification failed
+                data: null
+      description: verifyPlayOrder
+  /api/v1/orders/{id}:
+    get:
+      tags:
+        - trade
+      operationId: getOrder
+      summary: getOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ord_1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Order'
+              example:
+                code: 0
+                message: ok
+                data:
+                  id: ord_1
+                  productId: p_coins_100
+                  channel: paystack
+                  status: pending
+                  amountKobo: 50000
+                  coins: 100
+                  createdAt: '2026-10-29T00:00:00Z'
+                  paystackAuthorizationUrl: https://checkout.paystack.com/abc
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
+      description: getOrder
+  /api/v1/wallet/transactions:
+    get:
+      tags:
+        - trade
+      operationId: listTransactions
+      summary: listTransactions
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                      - items
+                      - page
+                      - size
+                      - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Transaction'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                    - id: tx_1
+                      deltaCoins: -30
+                      balanceAfterCoins: 90
+                      reason: unlock
+                      refId: ep_1010
+                      createdAt: '2026-10-29T00:00:00Z'
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+      description: listTransactions
+  /api/v1/checkin:
+    get:
+      tags:
+        - ops
+      operationId: getCheckin
+      summary: getCheckin
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Checkin'
+              example:
+                code: 0
+                message: ok
+                data:
+                  checkedInToday: false
+                  streakDays: 3
+                  todayRewardCoins: 10
+                  calendar:
+                    - day: 1
+                      rewardCoins: 5
+                      claimed: true
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+      description: getCheckin
+    post:
+      tags:
+        - ops
+      operationId: doCheckin
+      summary: doCheckin
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Checkin'
+              example:
+                code: 0
+                message: ok
+                data:
+                  checkedInToday: true
+                  streakDays: 4
+                  todayRewardCoins: 10
+                  calendar:
+                    - day: 1
+                      rewardCoins: 5
+                      claimed: true
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '409':
+          description: Already checked in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40902
+                message: Already checked in
+                data: null
+      description: doCheckin
+  /api/v1/tasks:
+    get:
+      tags:
+        - ops
+      operationId: listTasks
+      summary: listTasks
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+              example:
+                code: 0
+                message: ok
+                data:
+                  - id: t_watch_3
+                    title: Watch 3 episodes
+                    rewardCoins: 10
+                    progress: 1
+                    target: 3
+                    status: in_progress
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+      description: listTasks
+  /api/v1/tasks/{id}/claim:
+    post:
+      tags:
+        - ops
+      operationId: claimTask
+      summary: claimTask
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: t_watch_3
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      rewardCoins:
+                        type: integer
+                      balanceCoins:
+                        type: integer
+              example:
+                code: 0
+                message: ok
+                data:
+                  rewardCoins: 10
+                  balanceCoins: 130
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '409':
+          description: Task not claimable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40903
+                message: Task not claimable
+                data: null
+      description: claimTask
+  /api/v1/library:
+    get:
+      tags:
+        - ops
+      operationId: listLibrary
+      summary: listLibrary
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                      - items
+                      - page
+                      - size
+                      - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Drama'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                    - id: dr_1
+                      title: Lagos Love Story
+                      coverUrl: https://cdn.example.com/c/dr_1.jpg
+                      tags:
+                        - romance
+                      episodeCount: 60
+                      description: A Lagos romance.
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+      description: listLibrary
+    post:
+      tags:
+        - ops
+      operationId: addLibrary
+      summary: addLibrary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - dramaId
+              properties:
+                dramaId:
+                  type: string
+            example:
+              dramaId: dr_1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: 'null'
+              example:
+                code: 0
+                message: ok
+                data: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+      description: addLibrary
+    delete:
+      tags:
+        - ops
+      operationId: removeLibrary
+      summary: removeLibrary
+      parameters:
+        - name: dramaId
+          in: query
+          required: true
+          schema:
+            type: string
+          example: dr_1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: 'null'
+              example:
+                code: 0
+                message: ok
+                data: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+      description: removeLibrary
+  /api/v1/history:
+    post:
+      tags:
+        - ops
+      operationId: saveHistory
+      summary: saveHistory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - episodeId
+                - positionSec
+              properties:
+                episodeId:
+                  type: string
+                positionSec:
+                  type: integer
+            example:
+              episodeId: ep_1001
+              positionSec: 42
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: 'null'
+              example:
+                code: 0
+                message: ok
+                data: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+      description: saveHistory
+    get:
+      tags:
+        - ops
+      operationId: listHistory
+      summary: listHistory
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                      - items
+                      - page
+                      - size
+                      - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/History'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                    - dramaId: dr_1
+                      episodeId: ep_1001
+                      episodeNo: 1
+                      positionSec: 42
+                      updatedAt: '2026-10-29T00:00:00Z'
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+      description: listHistory
+  /api/v1/config:
+    get:
+      tags:
+        - ops
+      operationId: getConfig
+      summary: getConfig
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    additionalProperties: true
+              example:
+                code: 0
+                message: ok
+                data:
+                  minAppVersion: 1.0.0
+                  adUnlockEnabled: true
+                  vipEnabled: true
+                  coinsPerNaira: 0.2
+      description: getConfig
+  /api/v1/webhooks/paystack:
+    post:
+      tags:
+        - webhooks
+      operationId: webhookPaystack
+      summary: webhookPaystack
+      security: []
+      parameters:
+        - name: x-paystack-signature
+          in: header
+          required: true
+          schema:
+            type: string
+          example: sha512-hex
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            example:
+              event: charge.success
+              data:
+                reference: ord_1
+                amount: 50000
+                currency: NGN
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: 'null'
+              example:
+                code: 0
+                message: ok
+                data: null
+        '401':
+          description: Invalid signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40103
+                message: Invalid signature
+                data: null
+      description: webhookPaystack
+  /api/v1/webhooks/admob:
+    post:
+      tags:
+        - webhooks
+      operationId: webhookAdmob
+      summary: webhookAdmob
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            example:
+              ad_unit: ca-app-pub-xxx/yyy
+              custom_data: ep_1010
+              transaction_id: tx123
+              user_id: u_1
+              signature: MEUCIQ
+              key_id: '3335741209'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: 'null'
+              example:
+                code: 0
+                message: ok
+                data: null
+        '401':
+          description: Invalid signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40103
+                message: Invalid signature
+                data: null
+      description: webhookAdmob
+  /api/v1/webhooks/play:
+    post:
+      tags:
+        - webhooks
+      operationId: webhookPlay
+      summary: webhookPlay
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            example:
+              message:
+                data: eyJ2ZXJzaW9uIjoiMS4wIn0=
+                messageId: '1'
+              subscription: projects/x/subscriptions/play
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - code
+                  - message
+                  - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: 'null'
+              example:
+                code: 0
+                message: ok
+                data: null
+        '401':
+          description: Invalid signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40103
+                message: Invalid signature
+                data: null
+      description: webhookPlay
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+        - data
+      properties:
+        code:
+          type: integer
+          description: 5-digit business code, see errors.md
+        message:
+          type: string
+        data: {}
+    Tokens:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+            nickname:
+              type: string
+            guest:
+              type: boolean
+    Drama:
+      type: object
+      required:
+        - id
+        - title
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        coverUrl:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        episodeCount:
+          type: integer
+        description:
+          type: string
+    Episode:
+      type: object
+      required:
+        - id
+        - episodeNo
+        - locked
+        - free
+        - priceCoins
+      properties:
+        id:
+          type: string
+        episodeNo:
+          type: integer
+        title:
+          type: string
+        durationSec:
+          type: integer
+        free:
+          type: boolean
+        locked:
+          type: boolean
+        priceCoins:
+          type: integer
+    DramaDetail:
+      allOf:
+        - $ref: '#/components/schemas/Drama'
+        - type: object
+          properties:
+            episodes:
+              type: array
+              items:
+                $ref: '#/components/schemas/Episode'
+    LockedInfo:
+      type: object
+      required:
+        - priceCoins
+        - vipAvailable
+        - adAvailable
+      properties:
+        priceCoins:
+          type: integer
+        vipAvailable:
+          type: boolean
+        adAvailable:
+          type: boolean
+    Wallet:
+      type: object
+      properties:
+        balanceCoins:
+          type: integer
+        bonusCoins:
+          type: integer
+        vipUntil:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum:
+            - coins
+            - vip
+        title:
+          type: string
+        amountKobo:
+          type: integer
+        coins:
+          type: integer
+        bonusCoins:
+          type: integer
+        playProductId:
+          type: string
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        productId:
+          type: string
+        channel:
+          type: string
+          enum:
+            - play
+            - paystack
+        status:
+          type: string
+          enum:
+            - pending
+            - paid
+            - failed
+            - refunded
+        amountKobo:
+          type: integer
+        coins:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        paystackAuthorizationUrl:
+          type:
+            - string
+            - 'null'
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+        deltaCoins:
+          type: integer
+        balanceAfterCoins:
+          type: integer
+        reason:
+          type: string
+        refId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Checkin:
+      type: object
+      properties:
+        checkedInToday:
+          type: boolean
+        streakDays:
+          type: integer
+        todayRewardCoins:
+          type: integer
+        calendar:
+          type: array
+          items:
+            type: object
+            properties:
+              day:
+                type: integer
+              rewardCoins:
+                type: integer
+              claimed:
+                type: boolean
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        rewardCoins:
+          type: integer
+        progress:
+          type: integer
+        target:
+          type: integer
+        status:
+          type: string
+          enum:
+            - in_progress
+            - claimable
+            - claimed
+    History:
+      type: object
+      properties:
+        dramaId:
+          type: string
+        episodeId:
+          type: string
+        episodeNo:
+          type: integer
+        positionSec:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time

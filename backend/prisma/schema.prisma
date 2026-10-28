@@ -1,0 +1,163 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String       @id @default(cuid())
+  nickname    String?
+  guest       Boolean      @default(true)
+  provider    String?
+  providerUid String?
+  vipUntil    DateTime?    @map("vip_until")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  devices     Device[]
+  wallet      Wallet?
+  ledger      CoinLedger[]
+  unlocks     Unlock[]
+  orders      Order[]
+
+  @@unique([provider, providerUid])
+  @@map("users")
+}
+
+model Device {
+  id         String   @id @default(cuid())
+  deviceId   String   @unique @map("device_id")
+  userId     String   @map("user_id")
+  platform   String?
+  appVersion String?  @map("app_version")
+  lastIp     String?  @map("last_ip")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("devices")
+}
+
+model Tag {
+  id     String  @id @default(cuid())
+  slug   String  @unique
+  name   String
+  dramas Drama[]
+
+  @@map("tags")
+}
+
+model Drama {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  coverUrl     String?   @map("cover_url")
+  status       String    @default("draft")
+  episodeCount Int       @default(0) @map("episode_count")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  episodes     Episode[]
+  tags         Tag[]
+
+  @@map("dramas")
+}
+
+model Episode {
+  id          String   @id @default(cuid())
+  dramaId     String   @map("drama_id")
+  episodeNo   Int      @map("episode_no")
+  title       String?
+  durationSec Int      @default(0) @map("duration_sec")
+  hlsPath     String   @map("hls_path")
+  free        Boolean  @default(false)
+  priceCoins  Int      @default(0) @map("price_coins")
+  createdAt   DateTime @default(now()) @map("created_at")
+  drama       Drama    @relation(fields: [dramaId], references: [id])
+  unlocks     Unlock[]
+
+  @@unique([dramaId, episodeNo])
+  @@map("episodes")
+}
+
+model Wallet {
+  id           String   @id @default(cuid())
+  userId       String   @unique @map("user_id")
+  balanceCoins Int      @default(0) @map("balance_coins")
+  bonusCoins   Int      @default(0) @map("bonus_coins")
+  version      Int      @default(0)
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@map("wallets")
+}
+
+/// Append-only coin ledger. Written only by WalletService inside a transaction.
+model CoinLedger {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  deltaCoins        Int      @map("delta_coins")
+  balanceAfterCoins Int      @map("balance_after_coins")
+  reason            String
+  refType           String?  @map("ref_type")
+  refId             String?  @map("ref_id")
+  idempotencyKey    String   @unique @map("idempotency_key")
+  createdAt         DateTime @default(now()) @map("created_at")
+  user              User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("coin_ledger")
+}
+
+model Unlock {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  episodeId String   @map("episode_id")
+  method    String
+  costCoins Int      @default(0) @map("cost_coins")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
+  episode   Episode  @relation(fields: [episodeId], references: [id])
+
+  @@unique([userId, episodeId])
+  @@map("unlocks")
+}
+
+model Order {
+  id          String         @id @default(cuid())
+  userId      String         @map("user_id")
+  productId   String         @map("product_id")
+  channel     String
+  status      String         @default("pending")
+  amountKobo  Int            @map("amount_kobo")
+  coins       Int            @default(0)
+  bonusCoins  Int            @default(0) @map("bonus_coins")
+  externalRef String?        @unique @map("external_ref")
+  paidAt      DateTime?      @map("paid_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  user        User           @relation(fields: [userId], references: [id])
+  events      PaymentEvent[]
+
+  @@index([userId, createdAt])
+  @@map("orders")
+}
+
+/// Raw payment callback payloads (paystack / play / admob). eventKey enforces idempotency.
+model PaymentEvent {
+  id          String   @id @default(cuid())
+  provider    String
+  eventKey    String   @map("event_key")
+  orderId     String?  @map("order_id")
+  signatureOk Boolean  @map("signature_ok")
+  rawBody     String   @map("raw_body")
+  headers     Json
+  processed   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  order       Order?   @relation(fields: [orderId], references: [id])
+
+  @@unique([provider, eventKey])
+  @@map("payment_events")
+}
