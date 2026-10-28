@@ -36,8 +36,8 @@ services:
       redis: { condition: service_healthy }
 
   mock:
-    image: stoplight/prism:5
-    command: mock -h 0.0.0.0 -p 4010 /contracts/openapi.yaml
+    image: node:20-alpine
+    command: npx -y @stoplight/prism-cli@5 mock -h 0.0.0.0 -p 4010 /contracts/openapi.yaml
     volumes: ["./contracts:/contracts:ro"]
     ports: ["4010:4010"]
 

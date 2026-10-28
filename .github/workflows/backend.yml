@@ -44,14 +44,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose up -d --build --wait pg redis backend mock
+      - run: docker compose up -d --build pg redis backend mock
       - name: health check
         run: |
-          for i in $(seq 1 30); do curl -fsS localhost:3000/api/v1/health && break; sleep 2; done
+          for i in $(seq 1 60); do curl -fsS localhost:3000/api/v1/health && break; sleep 2; done
           curl -fsS localhost:3000/api/v1/health
       - name: mock check
         run: |
-          for i in $(seq 1 30); do curl -fsS localhost:4010/api/v1/dramas && break; sleep 2; done
+          for i in $(seq 1 60); do curl -fsS localhost:4010/api/v1/dramas && break; sleep 2; done
           curl -fsS localhost:4010/api/v1/dramas | grep -q '"items"'
       - if: failure()
         run: docker compose logs
