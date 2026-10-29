@@ -15,8 +15,8 @@ void main() {
     expect(e.badge, 'hot');
     expect(e.status, 'ongoing');
     expect(e.completed, isFalse);
-    expect(e.totalEpisodes, 60);
-    expect(e.plannedEpisodes, 60);
+    expect(e.totalEpisodes, 2);
+    expect(e.plannedEpisodes, 2);
     expect(e.episodeCount, 2);
     expect(e.topComment?.userName, 'Tunde_Ib');
     expect(kUseMocks, isTrue);

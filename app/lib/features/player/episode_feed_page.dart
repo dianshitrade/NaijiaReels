@@ -1,3 +1,4 @@
+import 'package:naija_reels/shared/ai_label.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -63,6 +64,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
   String? _description;
   String? _loadError;
   bool _completed = false;
+  int _total = 0;
   bool _immersive = false; // fullscreen: only video + subtitles
   bool _synopsisOpen = false;
   double _rate = 1.0;
@@ -127,6 +129,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
       _dramaCover = d.coverUrl;
       _description = d.description;
       _completed = d.completed;
+      _total = d.plannedEpisodes;
     });
     await _focus(_index);
   }
@@ -333,7 +336,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
                       fontSize: 17, fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
               Text(
-                  '${_completed ? 'Completed' : 'Ongoing'} · All ${_episodes.length} EPs',
+                  '${_completed ? 'Completed' : 'Ongoing'} · All $_total EPs',
                   style: const TextStyle(fontSize: 13, color: Colors.white60)),
               const SizedBox(height: 12),
               SeasonedEpisodeGrid(
@@ -595,7 +598,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
           title: _title ?? '',
           episodeNo: ep.episodeNo,
           episodeTitle: ep.title,
-          total: _episodes.length,
+          total: _total,
           completed: _completed,
           liked: _liked[i] ?? false,
           likeCount: _likeCount[i] ?? ep.likeCount ?? 0,
@@ -1127,7 +1130,7 @@ class PlayerChrome extends StatelessWidget {
                         Icon(Icons.info_outline,
                             size: 12, color: Colors.white54),
                         SizedBox(width: 4),
-                        Text('AI-generated content',
+                        Text(kAiContentLabel,
                             style:
                                 TextStyle(fontSize: 11, color: Colors.white54)),
                       ]),

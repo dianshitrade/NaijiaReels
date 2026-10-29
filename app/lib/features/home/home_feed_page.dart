@@ -1,3 +1,4 @@
+import 'package:naija_reels/shared/ai_label.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -567,7 +568,7 @@ class _Info extends StatelessWidget {
       const Row(children: [
         Icon(Icons.info_outline, size: 13, color: Colors.white54),
         SizedBox(width: 4),
-        Text('Creator note: AI-assisted content', style: TextStyle(color: Colors.white54, fontSize: 12)),
+        Text(kAiContentLabel, style: TextStyle(color: Colors.white54, fontSize: 12)),
       ]),
     ]);
   }

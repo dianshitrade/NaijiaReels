@@ -18,23 +18,22 @@ const int kErrAlreadyClaimed = 40903;
 
 /// Per-drama contract fields missing from the live API (Drama + DramaDetail).
 class _DramaExtras {
-  const _DramaExtras(this.heatCount, this.watchingCount, this.badge, this.status, this.totalEpisodes, this.saveCount,
+  const _DramaExtras(this.heatCount, this.watchingCount, this.badge, this.status, this.saveCount,
       [this.topComment]);
   final int saveCount;
   final int heatCount;
   final int watchingCount;
   final String? badge;
   final String status;
-  final int totalEpisodes;
   final TopComment? topComment;
 }
 
 /// Contract examples for known ids; others derive stable values from the id.
 const Map<String, _DramaExtras> _extras = {
-  'dr_mama': _DramaExtras(1284000, 3120, 'hot', 'ongoing', 60, 43860,
+  'dr_mama': _DramaExtras(1284000, 3120, 'hot', 'ongoing', 43860,
       TopComment(text: 'Mama Bisi no go kill me with laugh 😂', likeCount: 4210, userName: 'Tunde_Ib')),
-  'dr_prince': _DramaExtras(856000, 1450, 'new', 'completed', 40, 29240),
-  'dr_lagos': _DramaExtras(402000, 610, null, 'ongoing', 50, 36550),
+  'dr_prince': _DramaExtras(856000, 1450, 'new', 'completed', 29240),
+  'dr_lagos': _DramaExtras(402000, 610, null, 'ongoing', 36550),
 };
 
 /// Contract chart examples: rankChange per id (null = new entry).
@@ -83,7 +82,8 @@ Drama enrichDrama(Drama d) {
         status: e.status,
         saveCount: d.saveCount ?? e.saveCount,
         commentCount: d.commentCount ?? (d.id == 'dr_mama' ? 1874 : null),
-        totalEpisodes: d.totalEpisodes ?? e.totalEpisodes,
+        // Never invent episode counts: real totalEpisodes, else real episodeCount.
+        totalEpisodes: d.totalEpisodes ?? d.episodeCount,
         topComment: d.topComment ?? e.topComment,
         episodes: eps);
   }
@@ -93,7 +93,7 @@ Drama enrichDrama(Drama d) {
     watchingCount: d.watchingCount ?? 300 + h % 4000,
     badge: d.badge ?? (h % 3 == 0 ? 'hot' : (h % 3 == 1 ? 'new' : null)),
     saveCount: d.saveCount ?? 5000 + h % 40000,
-    totalEpisodes: d.totalEpisodes ?? (d.completed ? d.episodeCount : d.episodeCount + 20),
+    totalEpisodes: d.totalEpisodes ?? d.episodeCount,
     topComment:
         d.topComment ?? TopComment(text: _comments[h % _comments.length], likeCount: 200 + h % 3000, userName: null),
     episodes: eps,

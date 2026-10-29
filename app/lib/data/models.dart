@@ -41,6 +41,7 @@ class Drama {
   final int? totalEpisodes;
   final TopComment? topComment;
 
+  /// Single source for every "N EPs" / "EP x/N" label.
   int get plannedEpisodes => totalEpisodes ?? episodeCount;
 
   Drama copyWith({
