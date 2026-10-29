@@ -19,14 +19,18 @@ Future<void> pumpUntil(WidgetTester t, Finder f, {int seconds = 150}) async {
 }
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('guest -> home -> free play -> locked 403 -> coin unlock -> wallet 70',
       (t) async {
     await app.main();
+    await binding.convertFlutterSurfaceToImage();
+    await t.pump(const Duration(seconds: 4));
+    await binding.takeScreenshot('01_splash');
     await pumpUntil(t, find.text('Trending'));
     debugPrint('SMOKE: home loaded (guest login ok)');
     await t.pump(const Duration(seconds: 5)); // let covers load for screenshot
+    await binding.takeScreenshot('02_home');
     debugPrint('SMOKE: SCREEN home');
 
     final repo = Repository(ApiClient(buildDio()));
@@ -59,8 +63,8 @@ void main() {
     // UI: open the drama detail for a screenshot.
     await t.tap(find.text(drama.title).first);
     await t.pump(const Duration(seconds: 10));
+    await binding.takeScreenshot('03_drama_detail_after_unlock');
     debugPrint('SMOKE: SCREEN detail');
-    await t.pump(const Duration(seconds: 8));
     debugPrint('SMOKE: PASS');
   });
 }

@@ -93,19 +93,11 @@ jobs:
           OUT=../smoke-out
           adb logcat -c || true
           snap() { adb shell screencap -p /sdcard/s.png && adb pull /sdcard/s.png "$OUT/$1.png"; }
-          ( n=0; while sleep 1; do
-              for m in $(grep -o 'SMOKE: SCREEN [a-z]*' $OUT/smoke.log 2>/dev/null | awk '{print $3}'); do
-                [ -f "$OUT/$m.png" ] || snap "$m"
-              done
-              n=$((n+1)); [ $((n % 20)) -eq 0 ] && snap "periodic_$(printf %03d $n)"
-            done ) &
-          SHOTS=$!
           DEFINE=""
           if [ -n "$API_BASE_URL" ]; then DEFINE="--dart-define=API_BASE_URL=$API_BASE_URL"; fi
-          flutter test integration_test/smoke_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/smoke.log
+          SMOKE_OUT=$(cd $OUT && pwd) flutter drive --driver=test_driver/integration_test.dart --target=integration_test/smoke_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/smoke.log
           RC=${PIPESTATUS[0]}
           snap final || true
-          kill $SHOTS || true
           adb logcat -d > $OUT/logcat.txt || true
           exit $RC
           SH
