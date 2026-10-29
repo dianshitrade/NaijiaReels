@@ -308,6 +308,8 @@ paths:
                       badge: hot
                       status: completed
                       totalEpisodes: 60
+                      currentSeason: 1
+                      saveCount: 43860
                   sections:
                     - title: Trending
                       items:
@@ -323,6 +325,8 @@ paths:
                           badge: hot
                           status: completed
                           totalEpisodes: 60
+                          currentSeason: 1
+                          saveCount: 43860
       description: getHome
   /api/v1/dramas:
     get:
@@ -427,6 +431,8 @@ paths:
                       badge: hot
                       status: completed
                       totalEpisodes: 60
+                      currentSeason: 1
+                      saveCount: 43860
                   page: 1
                   size: 20
                   hasMore: false
@@ -479,9 +485,12 @@ paths:
                   badge: hot
                   status: completed
                   totalEpisodes: 60
+                  currentSeason: 1
+                  saveCount: 43860
                   episodes:
                     - id: ep_1001
                       episodeNo: 1
+                      seasonNumber: 1
                       title: Episode 1
                       durationSec: 90
                       free: true
@@ -489,11 +498,13 @@ paths:
                       priceCoins: 0
                     - id: ep_1010
                       episodeNo: 10
+                      seasonNumber: 1
                       title: Episode 10
                       durationSec: 95
                       free: false
                       locked: true
                       priceCoins: 30
+                  commentCount: 1874
                   topComment:
                     text: Mama Bisi no go kill me with laugh 😂
                     likeCount: 4210
@@ -589,6 +600,8 @@ paths:
                       badge: hot
                       status: completed
                       totalEpisodes: 60
+                      currentSeason: 1
+                      saveCount: 43860
                   page: 1
                   size: 20
                   hasMore: false
@@ -625,9 +638,18 @@ paths:
                   data:
                     type: object
                     required:
+                      - seasonNumber
                       - hlsUrl
                       - expiresAt
                     properties:
+                      seasonNumber:
+                        type: integer
+                        minimum: 1
+                        default: 1
+                      likeCount:
+                        type: integer
+                      commentCount:
+                        type: integer
                       hlsUrl:
                         type: string
                       expiresAt:
@@ -647,6 +669,9 @@ paths:
                 code: 0
                 message: ok
                 data:
+                  seasonNumber: 1
+                  likeCount: 2310
+                  commentCount: 148
                   hlsUrl: https://media.example.com/media/dr_1/1/index.m3u8?sig=abc&exp=1793232000
                   expiresAt: '2026-10-29T02:00:00Z'
         '401':
@@ -1565,6 +1590,8 @@ paths:
                       badge: hot
                       status: completed
                       totalEpisodes: 60
+                      currentSeason: 1
+                      saveCount: 43860
                   page: 1
                   size: 20
                   hasMore: false
@@ -1796,6 +1823,7 @@ paths:
                     - dramaId: dr_1
                       episodeId: ep_1001
                       episodeNo: 1
+                      seasonNumber: 1
                       positionSec: 42
                       updatedAt: '2026-10-29T00:00:00Z'
                   page: 1
@@ -2035,16 +2063,14 @@ paths:
           default: for_you
         example: for_you
         description: Feed channel
-      - &id001
-        name: page
+      - name: page
         in: query
         schema:
           type: integer
           minimum: 1
           default: 1
         example: 1
-      - &id002
-        name: size
+      - name: size
         in: query
         schema:
           type: integer
@@ -2091,11 +2117,11 @@ paths:
                 message: ok
                 data:
                   items:
-                  - drama: &id008
+                  - drama:
                       id: dr_mama
                       title: Mama-in-Law Wahala
                       coverUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/s1/cover.jpg
-                      tags: &id003
+                      tags:
                       - comedy
                       - family
                       episodeCount: 2
@@ -2105,9 +2131,12 @@ paths:
                       badge: hot
                       status: ongoing
                       totalEpisodes: 60
+                      currentSeason: 1
+                      saveCount: 43860
                     episode:
                       id: dr_mama_ep1
                       episodeNo: 1
+                      seasonNumber: 1
                       coverUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/cover.jpg
                       durationSec: 86
                       free: true
@@ -2115,6 +2144,8 @@ paths:
                       priceCoins: 0
                       hlsUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/master.m3u8?exp=1793325600&sig=3f9a1c
                       hlsUrlExpiresAt: '2026-10-30T10:10:00Z'
+                      likeCount: 2310
+                      commentCount: 148
                       subtitles:
                       - lang: en
                         label: English
@@ -2124,12 +2155,11 @@ paths:
                         url: https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/subs/pcm.vtt
                     liked: false
                     saved: true
-                    likeCount: 2310
-                  - drama: &id010
+                  - drama:
                       id: dr_prince
                       title: The Prince's Secret Bride
                       coverUrl: https://naijareels-media.onrender.com/princes-secret-bride/s1/cover.jpg
-                      tags: &id004
+                      tags:
                       - romance
                       - royalty
                       episodeCount: 40
@@ -2139,9 +2169,12 @@ paths:
                       badge: new
                       status: completed
                       totalEpisodes: 40
+                      currentSeason: 1
+                      saveCount: 29240
                     episode:
                       id: dr_prince_ep5
                       episodeNo: 5
+                      seasonNumber: 1
                       coverUrl: https://naijareels-media.onrender.com/princes-secret-bride/ep5/cover.jpg
                       durationSec: 92
                       free: false
@@ -2149,14 +2182,15 @@ paths:
                       priceCoins: 30
                       hlsUrl: null
                       hlsUrlExpiresAt: null
+                      likeCount: 980
+                      commentCount: 37
                       subtitles: []
                     liked: false
                     saved: false
-                    likeCount: 980
                   page: 1
                   size: 20
                   hasMore: false
-        '400': &id005
+        '400':
           description: Validation failed
           content:
             application/json:
@@ -2187,8 +2221,21 @@ paths:
         example: hot
         description: Chart type
         required: true
-      - *id001
-      - *id002
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
       responses:
         '200':
           description: OK
@@ -2231,7 +2278,9 @@ paths:
                   - id: dr_mama
                     title: Mama-in-Law Wahala
                     coverUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/s1/cover.jpg
-                    tags: *id003
+                    tags:
+                    - comedy
+                    - family
                     episodeCount: 2
                     description: A Lagos bride versus her Ibadan mother-in-law.
                     heatCount: 1284000
@@ -2239,12 +2288,16 @@ paths:
                     badge: hot
                     status: ongoing
                     totalEpisodes: 60
+                    currentSeason: 1
+                    saveCount: 43860
                     rank: 1
                     rankChange: 2
                   - id: dr_prince
                     title: The Prince's Secret Bride
                     coverUrl: https://naijareels-media.onrender.com/princes-secret-bride/s1/cover.jpg
-                    tags: *id004
+                    tags:
+                    - romance
+                    - royalty
                     episodeCount: 40
                     description: A Benin prince hides his crown to marry for love.
                     heatCount: 856000
@@ -2252,6 +2305,8 @@ paths:
                     badge: new
                     status: completed
                     totalEpisodes: 40
+                    currentSeason: 1
+                    saveCount: 29240
                     rank: 2
                     rankChange: null
                   - id: dr_lagos
@@ -2267,12 +2322,23 @@ paths:
                     badge: null
                     status: ongoing
                     totalEpisodes: 50
+                    currentSeason: 1
+                    saveCount: 36550
                     rank: 3
                     rankChange: -1
                   page: 1
                   size: 20
                   hasMore: false
-        '400': *id005
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40001
+                message: Validation failed
+                data: null
   /api/v1/dramas/coming-soon:
     get:
       tags:
@@ -2281,9 +2347,22 @@ paths:
       summary: listComingSoon
       description: Upcoming dramas ordered by releaseAt asc. reminderSet is false for guests.
       security: []
-      parameters: &id009
-      - *id001
-      - *id002
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
       responses:
         '200':
           description: OK
@@ -2323,8 +2402,7 @@ paths:
                 message: ok
                 data:
                   items:
-                  - &id011
-                    id: dr_owambe
+                  - id: dr_owambe
                     title: Owambe Queens
                     coverUrl: https://naijareels-media.onrender.com/owambe-queens/s1/cover.jpg
                     tags:
@@ -2337,6 +2415,8 @@ paths:
                     badge: new
                     status: ongoing
                     totalEpisodes: 45
+                    currentSeason: 1
+                    saveCount: 32895
                     releaseAt: '2026-11-14T18:00:00Z'
                     reminderSet: true
                     reminderCount: 8120
@@ -2382,7 +2462,7 @@ paths:
                   dramaId: dr_owambe
                   reminderSet: true
                   releaseAt: '2026-11-14T18:00:00Z'
-        '401': &id006
+        '401':
           description: Unauthorized
           content:
             application/json:
@@ -2392,7 +2472,7 @@ paths:
                 code: 40101
                 message: Unauthorized
                 data: null
-        '404': &id007
+        '404':
           description: Not found
           content:
             application/json:
@@ -2450,8 +2530,26 @@ paths:
                   dramaId: dr_owambe
                   reminderSet: false
                   releaseAt: '2026-11-14T18:00:00Z'
-        '401': *id006
-        '404': *id007
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
   /api/v1/episodes/{id}/like:
     post:
       tags:
@@ -2491,8 +2589,26 @@ paths:
                   episodeId: dr_mama_ep1
                   liked: true
                   likeCount: 2311
-        '401': *id006
-        '404': *id007
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
     delete:
       tags:
       - play
@@ -2531,8 +2647,26 @@ paths:
                   episodeId: dr_mama_ep1
                   liked: false
                   likeCount: 2310
-        '401': *id006
-        '404': *id007
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
   /api/v1/shop/packages:
     get:
       tags:
@@ -2623,8 +2757,21 @@ paths:
           default: available
         example: available
         description: Filter
-      - *id001
-      - *id002
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
       responses:
         '200':
           description: OK
@@ -2676,7 +2823,16 @@ paths:
                   page: 1
                   size: 20
                   hasMore: false
-        '401': *id006
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
   /api/v1/rewards/summary:
     get:
       tags:
@@ -2803,7 +2959,16 @@ paths:
                     target: 30
                     rewardCoinsMin: 10
                     rewardCoinsMax: 100
-        '401': *id006
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
   /api/v1/rewards/{taskId}/claim:
     post:
       tags:
@@ -2843,8 +3008,26 @@ paths:
                   taskId: checkin:2026-10-30
                   rewardCoins: 15
                   balanceCoins: 260
-        '401': *id006
-        '404': *id007
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
         '409':
           description: Task not claimable
           content:
@@ -2893,7 +3076,16 @@ paths:
                   likesCount: 58
                   balanceCoins: 245
                   vipUntil: null
-        '401': *id006
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
     patch:
       tags:
       - me
@@ -2949,8 +3141,26 @@ paths:
                   likesCount: 58
                   balanceCoins: 245
                   vipUntil: null
-        '400': *id005
-        '401': *id006
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40001
+                message: Validation failed
+                data: null
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
   /api/v1/me/avatar-upload-url:
     post:
       tags:
@@ -3011,7 +3221,16 @@ paths:
                 code: 40003
                 message: Unsupported content type
                 data: null
-        '401': *id006
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
   /api/v1/me/history:
     get:
       tags:
@@ -3031,8 +3250,21 @@ paths:
           default: all
         example: all
         description: Filter
-      - *id001
-      - *id002
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
       responses:
         '200':
           description: OK
@@ -3072,17 +3304,44 @@ paths:
                 message: ok
                 data:
                   items:
-                  - drama: *id008
+                  - drama:
+                      id: dr_mama
+                      title: Mama-in-Law Wahala
+                      coverUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/s1/cover.jpg
+                      tags:
+                      - comedy
+                      - family
+                      episodeCount: 2
+                      description: A Lagos bride versus her Ibadan mother-in-law.
+                      heatCount: 1284000
+                      watchingCount: 3120
+                      badge: hot
+                      status: ongoing
+                      totalEpisodes: 60
+                      currentSeason: 1
+                      saveCount: 43860
                     lastEpisodeId: dr_mama_ep2
                     lastEpisodeNo: 2
+                    lastSeasonNumber: 1
                     totalEpisodes: 60
+                    currentSeason: 1
+                    saveCount: 43860
                     progressSec: 41
                     finished: false
                     updatedAt: '2026-10-29T20:15:00Z'
                   page: 1
                   size: 20
                   hasMore: false
-        '401': *id006
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
   /api/v1/me/saved:
     get:
       tags:
@@ -3090,7 +3349,22 @@ paths:
       operationId: listMeSaved
       summary: listMeSaved
       description: Saved dramas (same data as GET /library, which it replaces). Add/remove still via POST/DELETE /library.
-      parameters: *id009
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
       responses:
         '200':
           description: OK
@@ -3130,13 +3404,37 @@ paths:
                 message: ok
                 data:
                   items:
-                  - drama: *id010
+                  - drama:
+                      id: dr_prince
+                      title: The Prince's Secret Bride
+                      coverUrl: https://naijareels-media.onrender.com/princes-secret-bride/s1/cover.jpg
+                      tags:
+                      - romance
+                      - royalty
+                      episodeCount: 40
+                      description: A Benin prince hides his crown to marry for love.
+                      heatCount: 856000
+                      watchingCount: 1450
+                      badge: new
+                      status: completed
+                      totalEpisodes: 40
+                      currentSeason: 1
+                      saveCount: 29240
                     savedAt: '2026-10-28T19:40:00Z'
                     lastEpisodeNo: 12
                   page: 1
                   size: 20
                   hasMore: false
-        '401': *id006
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
   /api/v1/me/liked:
     get:
       tags:
@@ -3144,7 +3442,22 @@ paths:
       operationId: listMeLiked
       summary: listMeLiked
       description: Liked episodes, newest first.
-      parameters: *id009
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
       responses:
         '200':
           description: OK
@@ -3184,16 +3497,41 @@ paths:
                 message: ok
                 data:
                   items:
-                  - drama: *id008
+                  - drama:
+                      id: dr_mama
+                      title: Mama-in-Law Wahala
+                      coverUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/s1/cover.jpg
+                      tags:
+                      - comedy
+                      - family
+                      episodeCount: 2
+                      description: A Lagos bride versus her Ibadan mother-in-law.
+                      heatCount: 1284000
+                      watchingCount: 3120
+                      badge: hot
+                      status: ongoing
+                      totalEpisodes: 60
+                      currentSeason: 1
+                      saveCount: 43860
                     episode:
                       id: dr_mama_ep1
                       episodeNo: 1
+                      seasonNumber: 1
                       coverUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/cover.jpg
                     likedAt: '2026-10-29T21:02:00Z'
                   page: 1
                   size: 20
                   hasMore: false
-        '401': *id006
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
   /api/v1/me/reminders:
     get:
       tags:
@@ -3201,7 +3539,22 @@ paths:
       operationId: listMeReminders
       summary: listMeReminders
       description: Dramas the user set a reminder for, by releaseAt asc. Released dramas drop out 7 days after release.
-      parameters: *id009
+      parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
       responses:
         '200':
           description: OK
@@ -3241,11 +3594,377 @@ paths:
                 message: ok
                 data:
                   items:
-                  - *id011
+                  - id: dr_owambe
+                    title: Owambe Queens
+                    coverUrl: https://naijareels-media.onrender.com/owambe-queens/s1/cover.jpg
+                    tags:
+                    - comedy
+                    - romance
+                    episodeCount: 0
+                    description: Aso-ebi rivalry at the biggest party in Surulere.
+                    heatCount: 0
+                    watchingCount: 0
+                    badge: new
+                    status: ongoing
+                    totalEpisodes: 45
+                    currentSeason: 1
+                    saveCount: 32895
+                    releaseAt: '2026-11-14T18:00:00Z'
+                    reminderSet: true
+                    reminderCount: 8120
                   page: 1
                   size: 20
                   hasMore: false
-        '401': *id006
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+  /api/v1/episodes/{id}/comments:
+    get:
+      tags:
+      - play
+      operationId: listComments
+      summary: listComments
+      description: Episode comments. sort=hot (likeCount desc, then newest) or new (createdAt desc). Public; liked is false for guests. Only visible (not hidden by moderation) comments are returned.
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: dr_mama_ep1
+      - name: sort
+        in: query
+        schema:
+          type: string
+          enum:
+          - hot
+          - new
+          default: hot
+        example: hot
+        description: Order
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                    - items
+                    - page
+                    - size
+                    - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Comment'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                  - id: cm_7Hq2
+                    user:
+                      id: u_tunde
+                      nickname: Tunde_Ib
+                      avatarUrl: https://naijareels-media.onrender.com/avatars/u_tunde.jpg
+                    text: Mama Bisi no go kill me with laugh 😂
+                    likeCount: 4210
+                    liked: true
+                    createdAt: '2026-10-29T19:12:00Z'
+                    replyCount: 0
+                  - id: cm_8Kd9
+                    user:
+                      id: u_amaka
+                      nickname: Amaka from Enugu
+                      avatarUrl: null
+                    text: Wetin Ngozi do her sef? Episode 3 abeg!
+                    likeCount: 312
+                    liked: false
+                    createdAt: '2026-10-29T21:40:00Z'
+                    replyCount: 0
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40001
+                message: Validation failed
+                data: null
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
+    post:
+      tags:
+      - play
+      operationId: createComment
+      summary: createComment
+      description: 'Post a comment (P1). Requires a bound or guest Bearer token. Text is trimmed, 1-500 chars. Basic moderation: server-side profanity/link filter (EN + Pidgin/Yoruba/Igbo/Hausa word list) rejects with 42203; report/hide flow comes later. Rate limit: 5 comments per minute and 50 per day per user (42901).'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: dr_mama_ep1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - text
+              properties:
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+            example:
+              text: This mother-in-law na my own mother-in-law 🤣
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Comment'
+              example:
+                code: 0
+                message: ok
+                data:
+                  id: cm_9Zx1
+                  user:
+                    id: u_8f2k1
+                    nickname: Chioma O.
+                    avatarUrl: https://naijareels-media.onrender.com/avatars/u_8f2k1.jpg
+                  text: This mother-in-law na my own mother-in-law 🤣
+                  likeCount: 0
+                  liked: false
+                  createdAt: '2026-10-30T06:10:00Z'
+                  replyCount: 0
+        '422':
+          description: Comment text invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 42203
+                message: Comment text invalid
+                data:
+                  reason: too_long
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 42901
+                message: Too many requests
+                data: null
+  /api/v1/comments/{id}/like:
+    post:
+      tags:
+      - play
+      operationId: likeComment
+      summary: likeComment
+      description: Like a comment (P1). Idempotent.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: cm_8Kd9
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/CommentLike'
+              example:
+                code: 0
+                message: ok
+                data:
+                  commentId: cm_8Kd9
+                  liked: true
+                  likeCount: 313
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
+    delete:
+      tags:
+      - play
+      operationId: unlikeComment
+      summary: unlikeComment
+      description: Remove comment like (P1). Idempotent.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: cm_8Kd9
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/CommentLike'
+              example:
+                code: 0
+                message: ok
+                data:
+                  commentId: cm_8Kd9
+                  liked: false
+                  likeCount: 312
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
 components:
   securitySchemes:
     bearerAuth:
@@ -3256,9 +3975,9 @@ components:
     Error:
       type: object
       required:
-        - code
-        - message
-        - data
+      - code
+      - message
+      - data
       properties:
         code:
           type: integer
@@ -3269,8 +3988,8 @@ components:
     Tokens:
       type: object
       required:
-        - accessToken
-        - refreshToken
+      - accessToken
+      - refreshToken
       properties:
         accessToken:
           type: string
@@ -3290,8 +4009,10 @@ components:
     Drama:
       type: object
       required:
-        - id
-        - title
+      - id
+      - title
+      - status
+      - currentSeason
       properties:
         id:
           type: string
@@ -3317,29 +4038,39 @@ components:
           description: Users who played an episode in the last 10 minutes.
         badge:
           type:
-            - string
-            - 'null'
+          - string
+          - 'null'
           enum:
-            - hot
-            - new
-            - null
+          - hot
+          - new
+          - null
           description: Corner badge. new = first episode released < 14 days ago; hot = top 10 by heat.
         status:
           type: string
           enum:
-            - completed
-            - ongoing
+          - completed
+          - ongoing
         totalEpisodes:
           type: integer
           description: Planned total episodes (== episodeCount when completed). Drives "Ep 2 / 60".
+        currentSeason:
+          type: integer
+          minimum: 1
+          default: 1
+          description: seasonNumber of the latest released season (1 for single-season dramas).
+        saveCount:
+          type: integer
+          minimum: 0
+          description: Users who saved the drama.
     Episode:
       type: object
       required:
-        - id
-        - episodeNo
-        - locked
-        - free
-        - priceCoins
+      - id
+      - episodeNo
+      - locked
+      - free
+      - priceCoins
+      - seasonNumber
       properties:
         id:
           type: string
@@ -3357,15 +4088,26 @@ components:
           type: integer
         coverUrl:
           type:
-            - string
-            - 'null'
+          - string
+          - 'null'
           description: Absolute per-episode cover image URL; null when absent.
+        seasonNumber:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Season this episode belongs to; episodeNo restarts at 1 per season.
+        likeCount:
+          type: integer
+          minimum: 0
+        commentCount:
+          type: integer
+          minimum: 0
     SubtitleTrack:
       type: object
       required:
-        - lang
-        - label
-        - url
+      - lang
+      - label
+      - url
       properties:
         lang:
           type: string
@@ -3378,44 +4120,48 @@ components:
           description: Absolute WebVTT URL
     DramaDetail:
       allOf:
-        - $ref: '#/components/schemas/Drama'
-        - type: object
-          properties:
-            seasons:
-              type: array
-              description: Optional. Seasons of the drama, ascending by seasonNo.
-              items:
-                $ref: '#/components/schemas/Season'
-            episodes:
-              type: array
-              items:
-                $ref: '#/components/schemas/Episode'
-            topComment:
-              $ref: '#/components/schemas/TopComment'
+      - $ref: '#/components/schemas/Drama'
+      - type: object
+        properties:
+          seasons:
+            type: array
+            description: Optional. Seasons of the drama, ascending by seasonNo.
+            items:
+              $ref: '#/components/schemas/Season'
+          episodes:
+            type: array
+            items:
+              $ref: '#/components/schemas/Episode'
+          topComment:
+            $ref: '#/components/schemas/TopComment'
+          commentCount:
+            type: integer
+            minimum: 0
+            description: Sum of episode commentCount across released episodes (denormalised counter).
     Season:
       type: object
       required:
-        - seasonNo
+      - seasonNo
       properties:
         seasonNo:
           type: integer
           minimum: 1
         title:
           type:
-            - string
-            - 'null'
+          - string
+          - 'null'
         coverUrl:
           type:
-            - string
-            - 'null'
+          - string
+          - 'null'
           format: uri
           description: Absolute season cover URL, null when the season has no cover yet.
     LockedInfo:
       type: object
       required:
-        - priceCoins
-        - vipAvailable
-        - adAvailable
+      - priceCoins
+      - vipAvailable
+      - adAvailable
       properties:
         priceCoins:
           type: integer
@@ -3432,8 +4178,8 @@ components:
           type: integer
         vipUntil:
           type:
-            - string
-            - 'null'
+          - string
+          - 'null'
           format: date-time
     Product:
       type: object
@@ -3443,8 +4189,8 @@ components:
         type:
           type: string
           enum:
-            - coins
-            - vip
+          - coins
+          - vip
         title:
           type: string
         amountKobo:
@@ -3465,15 +4211,15 @@ components:
         channel:
           type: string
           enum:
-            - play
-            - paystack
+          - play
+          - paystack
         status:
           type: string
           enum:
-            - pending
-            - paid
-            - failed
-            - refunded
+          - pending
+          - paid
+          - failed
+          - refunded
         amountKobo:
           type: integer
         coins:
@@ -3483,12 +4229,12 @@ components:
           format: date-time
         paystackAuthorizationUrl:
           type:
-            - string
-            - 'null'
+          - string
+          - 'null'
         couponId:
           type:
-            - string
-            - 'null'
+          - string
+          - 'null'
         discountKobo:
           type: integer
           description: Coupon discount applied; amountKobo is the amount actually charged.
@@ -3544,9 +4290,9 @@ components:
         status:
           type: string
           enum:
-            - in_progress
-            - claimable
-            - claimed
+          - in_progress
+          - claimable
+          - claimed
     History:
       type: object
       properties:
@@ -3561,6 +4307,11 @@ components:
         updatedAt:
           type: string
           format: date-time
+        seasonNumber:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Season this episode belongs to; episodeNo restarts at 1 per season.
     TopComment:
       type:
       - object
@@ -3590,6 +4341,7 @@ components:
       - free
       - priceCoins
       - hlsUrl
+      - seasonNumber
       properties:
         id:
           type: string
@@ -3622,6 +4374,17 @@ components:
           description: Same tracks as /episodes/{id}/play; empty when locked.
           items:
             $ref: '#/components/schemas/SubtitleTrack'
+        seasonNumber:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Season this episode belongs to; episodeNo restarts at 1 per season.
+        likeCount:
+          type: integer
+          minimum: 0
+        commentCount:
+          type: integer
+          minimum: 0
     FeedItem:
       type: object
       required:
@@ -3634,12 +4397,10 @@ components:
           $ref: '#/components/schemas/FeedEpisode'
         liked:
           type: boolean
-          description: Current user liked this episode (false for guests).
+          description: Current user liked this episode (false for guests). Counts live on episode.likeCount / episode.commentCount.
         saved:
           type: boolean
           description: Drama is in the user's saved list.
-        likeCount:
-          type: integer
     ChartItem:
       allOf:
       - $ref: '#/components/schemas/Drama'
@@ -3986,6 +4747,7 @@ components:
       - progressSec
       - finished
       - updatedAt
+      - lastSeasonNumber
       properties:
         drama:
           $ref: '#/components/schemas/Drama'
@@ -4004,6 +4766,11 @@ components:
         updatedAt:
           type: string
           format: date-time
+        lastSeasonNumber:
+          type: integer
+          minimum: 1
+          default: 1
+          description: seasonNumber of lastEpisodeId.
     SavedDrama:
       type: object
       required:
@@ -4033,6 +4800,7 @@ components:
           required:
           - id
           - episodeNo
+          - seasonNumber
           properties:
             id:
               type: string
@@ -4042,6 +4810,11 @@ components:
               type:
               - string
               - 'null'
+            seasonNumber:
+              type: integer
+              minimum: 1
+              default: 1
+              description: Season this episode belongs to; episodeNo restarts at 1 per season.
         likedAt:
           type: string
           format: date-time
@@ -4075,4 +4848,62 @@ components:
           type: string
           format: date-time
         maxBytes:
+          type: integer
+    CommentUser:
+      type: object
+      required:
+      - id
+      - nickname
+      properties:
+        id:
+          type: string
+        nickname:
+          type: string
+        avatarUrl:
+          type:
+          - string
+          - 'null'
+    Comment:
+      type: object
+      required:
+      - id
+      - user
+      - text
+      - likeCount
+      - liked
+      - createdAt
+      - replyCount
+      properties:
+        id:
+          type: string
+        user:
+          $ref: '#/components/schemas/CommentUser'
+        text:
+          type: string
+          maxLength: 500
+        likeCount:
+          type: integer
+          minimum: 0
+        liked:
+          type: boolean
+          description: false for guests.
+        createdAt:
+          type: string
+          format: date-time
+        replyCount:
+          type: integer
+          minimum: 0
+          description: Replies are not in MVP; always 0 until a replies endpoint exists.
+    CommentLike:
+      type: object
+      required:
+      - commentId
+      - liked
+      - likeCount
+      properties:
+        commentId:
+          type: string
+        liked:
+          type: boolean
+        likeCount:
           type: integer
