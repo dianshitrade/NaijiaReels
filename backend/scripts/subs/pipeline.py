@@ -19,9 +19,19 @@ import argparse, json, math, os, re, subprocess, sys, textwrap, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BACKEND = os.path.dirname(os.path.dirname(HERE))
-LANGS = [("en", "English"), ("pcm", "Naija Pidgin"), ("yo", "Yorùbá"), ("ig", "Igbo"), ("ha", "Hausa"), ("fr", "Français")]
-LANG_NAMES = {"pcm": "Nigerian Pidgin", "yo": "Yoruba", "ig": "Igbo", "ha": "Hausa", "fr": "French"}
+LANGS = [("en", "English"), ("pcm", "Naija Pidgin"), ("yo", "Yorùbá"), ("ig", "Igbo"), ("ha", "Hausa"), ("fr", "Français"), ("zh-Hans", "Chinese")]
+LANG_NAMES = {"pcm": "Nigerian Pidgin", "yo": "Yoruba", "ig": "Igbo", "ha": "Hausa", "fr": "French", "zh-Hans": "Simplified Chinese (keep Latin names Felix/Ada/Lagos/DNA)"}
 MAX_CHARS, MAX_LINES = 42, 2
+CJK_MAX_CHARS = 18  # per line for zh-Hans
+CJK_PUNCT = "，。！？；：…—、"
+
+
+def is_cjk(text):
+    return bool(re.search(r"[\u3000-\u9fff\uff00-\uffef]", text))
+
+
+def line_limit(text):
+    return CJK_MAX_CHARS if is_cjk(text) else MAX_CHARS
 RENDITIONS = [("360p", 360, 640, "800k", "96k", 1000000), ("720p", 720, 1280, "2000k", "128k", 2400000)]
 
 TS = r"(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{3})"
@@ -55,7 +65,21 @@ def parse_subs(path):
     return cues
 
 
+def wrap_cjk(text):
+    if len(text) <= CJK_MAX_CHARS:
+        return [text]
+    mid = len(text) / 2
+    cands = [i + 1 for i, ch in enumerate(text) if ch in CJK_PUNCT and i + 1 < len(text)]
+    cands = [i for i in cands if i <= CJK_MAX_CHARS and len(text) - i <= CJK_MAX_CHARS] or [round(mid)]
+    i = min(cands, key=lambda i: abs(i - mid))
+    while i < len(text) and text[i] in CJK_PUNCT:  # keep trailing punctuation (e.g. "……") on line 1
+        i += 1
+    return [text[:i], text[i:]]
+
+
 def wrap(text):
+    if is_cjk(text):
+        return wrap_cjk(text)
     lines = textwrap.wrap(text, MAX_CHARS, break_long_words=False)
     if len(lines) <= MAX_LINES:
         return lines
@@ -174,12 +198,12 @@ def main():
     os.makedirs(os.path.join(HERE, "review"), exist_ok=True)
     head = "| # | time | " + " | ".join(c for c, _ in LANGS) + " |"
     rows = [f"# {nn} subtitle review ({a.slug})", "", f"Source: `{en}` · provider: `{a.provider}` · cues: {len(cues)}",
-            "Lines marked ⚠ exceed 2×42 chars after wrapping.", "", head, "|" + "---|" * (len(LANGS) + 2)]
+            "Lines marked ⚠ exceed 2×42 chars (2×18 for Chinese) after wrapping.", "", head, "|" + "---|" * (len(LANGS) + 2)]
     for i, (s, e, _) in enumerate(cues):
         cells = []
         for code, _ in LANGS:
             t = texts[code][i].replace("|", "\\|")
-            if any(len(l) > MAX_CHARS for l in wrap(texts[code][i])): t = "⚠ " + t
+            if any(len(l) > line_limit(l) for l in wrap(texts[code][i])): t = "⚠ " + t
             cells.append(t)
         rows.append(f"| {i+1} | {fmt(s)[3:8]} | " + " | ".join(cells) + " |")
     open(os.path.join(HERE, "review", f"{nn}.md"), "w", encoding="utf-8").write("\n".join(rows) + "\n")

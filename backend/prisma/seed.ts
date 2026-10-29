@@ -1,5 +1,6 @@
 /* Idempotent seed: 3 placeholder vertical dramas x 6 episodes (HLS under backend/media). */
 import { Prisma, PrismaClient } from '@prisma/client';
+import { SUB_LANGS } from './subtitle-langs';
 
 const prisma = new PrismaClient();
 
@@ -28,15 +29,6 @@ const EPISODE_COVERS: Record<string, string> = {
   dr_mama_ep1: 'mama-in-law-wahala/ep1/cover.jpg',
   dr_mama_ep2: 'mama-in-law-wahala/ep2/cover.jpg',
 };
-// Subtitle tracks (BCP-47 lang, display label); files live at <slug>/ep<n>/subs/<lang>.vtt.
-const SUB_LANGS: [string, string][] = [
-  ['en', 'English'],
-  ['pcm', 'Naija Pidgin'],
-  ['yo', 'Yorùbá'],
-  ['ig', 'Igbo'],
-  ['ha', 'Hausa'],
-  ['fr', 'Français'],
-];
 const EPISODES_WITH_SUBS = new Set(['dr_mama_ep1', 'dr_mama_ep2']);
 const FREE_EPISODES = 2;
 // Real (non-placeholder) episode durations in seconds, keyed by `${dramaId}_ep${n}`.
