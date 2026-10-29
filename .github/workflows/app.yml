@@ -124,7 +124,7 @@ jobs:
           RC=${PIPESTATUS[0]}
           snap final || true
           curl -s -m 90 -o /dev/null -w 'warm-up media %{http_code}\n' https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/master.m3u8 || true
-          SMOKE_OUT=$(cd $OUT && pwd) flutter drive --driver=test_driver/integration_test.dart --target=integration_test/subtitle_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/subtitle.log
+          SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/subtitle_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/subtitle.log
           SRC=${PIPESTATUS[0]}
           [ "$RC" = 0 ] && RC=$SRC
           # flutter drive uninstalls the app afterwards; reinstall so the launcher shows our icon
@@ -148,6 +148,7 @@ jobs:
           profile: pixel_6
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: bash smoke.sh
+        timeout-minutes: 35
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -13,7 +13,11 @@ void main() {
   testWidgets('HLS subtitle track auto-selected and rendered', (t) async {
     MediaKit.ensureInitialized();
     final pool = PlayerPool();
-    final p = await pool.focus(url);
+    // media_kit opens with real timers/platform IO; under testWidgets' fake
+    // async zone these never complete (the previous run hung here for 40+ min).
+    debugPrint('SUBS: opening $url');
+    final p = (await t.runAsync(() => pool.focus(url).timeout(const Duration(seconds: 90))))!;
+    debugPrint('SUBS: opened');
     await t.pumpWidget(MaterialApp(
       theme: ThemeData.dark(),
       home: Scaffold(
@@ -33,7 +37,8 @@ void main() {
     await binding.convertFlutterSurfaceToImage();
     String sub = '';
     for (var i = 0; i < 120 && sub.isEmpty; i++) {
-      await t.pump(const Duration(seconds: 1));
+      await t.runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
+      await t.pump(const Duration(milliseconds: 100));
       sub = p.player.state.subtitle.join(' ').trim();
       if (i % 5 == 0) {
         debugPrint('SUBS: t=$i tracks.subtitle=${p.player.state.tracks.subtitle.map((e) => '${e.id}/${e.language}').toList()} '
@@ -42,10 +47,11 @@ void main() {
       }
     }
     debugPrint('SUBS: current=${p.player.state.track.subtitle.id} text="$sub"');
-    await t.pump(const Duration(milliseconds: 500));
+    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 500)));
+    await t.pump(const Duration(milliseconds: 100));
     await binding.takeScreenshot('player_subtitles');
     expect(sub, isNotEmpty);
     expect(find.text(p.player.state.subtitle.first), findsWidgets);
-    await pool.disposeAll();
-  });
+    await t.runAsync(() => pool.disposeAll().timeout(const Duration(seconds: 20)));
+  }, timeout: const Timeout(Duration(minutes: 5)));
 }
