@@ -127,6 +127,12 @@ PROVIDERS = {"manual": provider_manual, "openai": provider_openai}
 
 
 # ---------- HLS ----------
+# Fast start: 2s segments, closed GOP every 2s (aligned across renditions) so the
+# player can start after ~one small 360p segment and ABR can switch every 2s.
+SEG = 2
+GOP = 60  # 2s @ 30fps (source is 30fps); force_key_frames guarantees a keyframe at every 2s boundary
+
+
 def transcode(video, out_dir):
     for name, w, h, vb, ab, _ in RENDITIONS:
         d = os.path.join(out_dir, name)
@@ -135,9 +141,9 @@ def transcode(video, out_dir):
             os.remove(os.path.join(d, f))
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", video, "-vf", f"scale={w}:{h},format=yuv420p",
                         "-c:v", "libx264", "-preset", "medium", "-profile:v", "main", "-b:v", vb, "-maxrate", vb, "-bufsize", vb,
-                        "-g", "48", "-sc_threshold", "0", "-force_key_frames", "expr:gte(t,n_forced*4)",
+                        "-g", str(GOP), "-keyint_min", str(GOP), "-sc_threshold", "0", "-force_key_frames", f"expr:gte(t,n_forced*{SEG})",
                         "-c:a", "aac", "-b:a", ab, "-ac", "2", "-ar", "44100",
-                        "-f", "hls", "-hls_time", "4", "-hls_playlist_type", "vod",
+                        "-f", "hls", "-hls_time", str(SEG), "-hls_playlist_type", "vod",
                         "-hls_segment_filename", os.path.join(d, "seg_%03d.ts"), os.path.join(d, "index.m3u8")], check=True)
 
 
