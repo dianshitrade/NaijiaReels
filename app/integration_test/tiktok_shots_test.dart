@@ -69,9 +69,16 @@ void main() {
       await wait(250);
     }
     if (txt.evaluate().isNotEmpty) {
-      await t.runAsync(() => prog().player.pause());
+      await t.runAsync(() async {
+        await prog().player.pause();
+        // freeze inside the cue so the shot still shows it
+        final back = prog().player.state.position - const Duration(milliseconds: 400);
+        await prog().player.seek(back.isNegative ? Duration.zero : back);
+      });
+      await wait(1000);
     }
     debugPrint('QUALITY: yo cue shown=${txt.evaluate().isNotEmpty} '
+        'text="${txt.evaluate().isEmpty ? '' : t.widget<Text>(txt).data}" '
         'res=${prog().player.state.width}x${prog().player.state.height}');
     await shot('tiktok_translation');
   }, timeout: const Timeout(Duration(minutes: 8)));

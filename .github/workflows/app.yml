@@ -144,7 +144,7 @@ jobs:
           adb logcat -c || true
           # screencap on SHOT:<name> lines printed by subs_shots_test
           ( adb logcat -v raw -s flutter | while IFS= read -r l; do
-              case "$l" in *SHOT:*) n=$(echo "${l##*SHOT:}" | tr -dc 'a-z_'); adb shell screencap -p /sdcard/$n.png && adb pull /sdcard/$n.png "$OUT/$n.png";; esac
+              case "$l" in *SHOT:*) n=$(echo "${l##*SHOT:}" | tr -dc 'a-z_'); adb shell screencap -p /sdcard/$n.png </dev/null && adb pull /sdcard/$n.png "$OUT/$n.png" </dev/null;; esac
             done ) &
           WATCH=$!
           SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 720 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/subs_shots_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/subs_shots.log
@@ -154,7 +154,7 @@ jobs:
           [ "$RC" = 0 ] && RC=$SSRC
           adb logcat -c || true
           ( adb logcat -v raw -s flutter | while IFS= read -r l; do
-              case "$l" in *SHOT:*) n=$(echo "${l##*SHOT:}" | tr -dc 'a-z_'); adb shell screencap -p /sdcard/$n.png && adb pull /sdcard/$n.png "$OUT/$n.png";; esac
+              case "$l" in *SHOT:*) n=$(echo "${l##*SHOT:}" | tr -dc 'a-z_'); adb shell screencap -p /sdcard/$n.png </dev/null && adb pull /sdcard/$n.png "$OUT/$n.png" </dev/null;; esac
             done ) &
           WATCH=$!
           SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/tiktok_shots_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/tiktok_shots.log
