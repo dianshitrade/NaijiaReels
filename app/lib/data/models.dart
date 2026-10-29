@@ -10,7 +10,55 @@ class Drama {
     this.description,
     this.episodes = const [],
     this.completed = false,
+    this.heatCount,
+    this.watchingCount,
+    this.badge,
+    this.status,
+    this.totalEpisodes,
+    this.topComment,
   });
+
+  /// Contract T13 fields (null until the backend ships them; mocked in data/mock).
+  final int? heatCount;
+  final int? watchingCount;
+
+  /// 'hot' | 'new' | null
+  final String? badge;
+
+  /// 'completed' | 'ongoing'
+  final String? status;
+
+  /// Planned total episodes; [episodeCount] is released so far.
+  final int? totalEpisodes;
+  final TopComment? topComment;
+
+  int get plannedEpisodes => totalEpisodes ?? episodeCount;
+
+  Drama copyWith({
+    int? heatCount,
+    int? watchingCount,
+    String? badge,
+    String? status,
+    int? totalEpisodes,
+    TopComment? topComment,
+    List<EpisodeItem>? episodes,
+  }) =>
+      Drama(
+        id: id,
+        title: title,
+        coverUrl: coverUrl,
+        tags: tags,
+        episodeCount: episodeCount,
+        description: description,
+        episodes: episodes ?? this.episodes,
+        completed: status != null ? status == 'completed' : completed,
+        heatCount: heatCount ?? this.heatCount,
+        watchingCount: watchingCount ?? this.watchingCount,
+        badge: badge ?? this.badge,
+        status: status ?? this.status,
+        totalEpisodes: totalEpisodes ?? this.totalEpisodes,
+        topComment: topComment ?? this.topComment,
+      );
 
   /// All episodes released (API `status: completed` / `completed: true`).
   final bool completed;
@@ -36,7 +84,72 @@ class Drama {
             (j['status'] as String?)?.toLowerCase() == 'completed' ||
             ((j['episodeCount'] as num?)?.toInt() ?? 0) > 0 &&
                 ((j['episodes'] as List?)?.length ?? 0) >= ((j['episodeCount'] as num?)?.toInt() ?? 0),
+        heatCount: (j['heatCount'] as num?)?.toInt(),
+        watchingCount: (j['watchingCount'] as num?)?.toInt(),
+        badge: j['badge'] as String?,
+        status: j['status'] as String?,
+        totalEpisodes: (j['totalEpisodes'] as num?)?.toInt(),
+        topComment: TopComment.tryParse(j['topComment']),
       );
+}
+
+/// Contract `TopComment` (nullable object).
+class TopComment {
+  const TopComment({required this.text, required this.likeCount, this.userName});
+  final String text;
+  final int likeCount;
+  final String? userName;
+  static TopComment? tryParse(Object? o) {
+    if (o is! Map || o['text'] is! String) return null;
+    return TopComment(
+        text: o['text'] as String,
+        likeCount: (o['likeCount'] as num?)?.toInt() ?? 0,
+        userName: o['userName'] as String?);
+  }
+}
+
+/// Contract `FeedEpisode`.
+class FeedEpisode {
+  const FeedEpisode({
+    required this.id,
+    required this.episodeNo,
+    required this.durationSec,
+    required this.locked,
+    this.free = false,
+    this.priceCoins = 0,
+    this.coverUrl,
+    this.hlsUrl,
+    this.hlsUrlExpiresAt,
+    this.subtitles = const [],
+  });
+  final String id;
+  final int episodeNo;
+  final int durationSec;
+  final bool locked;
+  final bool free;
+  final int priceCoins;
+  final String? coverUrl;
+
+  /// Signed, ~10 min; always null when [locked].
+  final String? hlsUrl;
+  final String? hlsUrlExpiresAt;
+  final List<SubtitleRef> subtitles;
+}
+
+/// Contract `FeedItem`: GET /feed?tag=… item.
+class FeedItem {
+  const FeedItem({
+    required this.drama,
+    required this.episode,
+    this.liked = false,
+    this.saved = false,
+    this.likeCount = 0,
+  });
+  final Drama drama;
+  final FeedEpisode episode;
+  final bool liked;
+  final bool saved;
+  final int likeCount;
 }
 
 class EpisodeItem {
