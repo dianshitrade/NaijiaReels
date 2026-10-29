@@ -58,6 +58,19 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
         debugPrint('[HomeFeed] pool op failed: $e');
       });
 
+  @override
+  void initState() {
+    super.initState();
+    _subs.addListener(_onSubsChanged);
+  }
+
+  // Same behaviour as the player page: switch the active track in place.
+  void _onSubsChanged() {
+    if (!mounted) return;
+    setState(() {});
+    _pool.setSubtitleLang(_subs.activeLang);
+  }
+
   bool get _visible => widget.active && !_covered && mounted;
 
   @override
@@ -351,6 +364,8 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
                 item: it,
                 onTitle: () => context.push(Routes.dramaDetail(d.id)),
                 onFullscreen: () => setState(() => _immersive = true),
+                subs: _subs,
+                onTranslate: () => showSubtitlePicker(context, _subs),
                 onComment: () => _showComments(it))),
       ] else
         Positioned(
@@ -447,7 +462,15 @@ class _TopBar extends StatelessWidget {
 }
 
 class _Info extends StatelessWidget {
-  const _Info({required this.item, required this.onTitle, required this.onFullscreen, required this.onComment});
+  const _Info(
+      {required this.item,
+      required this.onTitle,
+      required this.onFullscreen,
+      required this.onComment,
+      required this.subs,
+      required this.onTranslate});
+  final SubtitleSettings subs;
+  final VoidCallback onTranslate;
   final FeedItem item;
   final VoidCallback onTitle;
   final VoidCallback onFullscreen;
@@ -552,6 +575,9 @@ class _Info extends StatelessWidget {
         ),
       ],
       const SizedBox(height: 6),
+      KeyedSubtree(
+          key: const ValueKey('feed-see-translation'), child: SeeTranslationLink(settings: subs, onPick: onTranslate)),
+      const SizedBox(height: 4),
       const Row(children: [
         Icon(Icons.info_outline, size: 13, color: Colors.white54),
         SizedBox(width: 4),
