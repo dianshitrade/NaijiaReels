@@ -96,7 +96,9 @@ class DramaCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           CoverImage(drama.coverUrl),
           const SizedBox(height: 4),
-          Text(drama.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+          Flexible(
+            child: Text(drama.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+          ),
         ]),
       ),
     );
