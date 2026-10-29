@@ -18,6 +18,8 @@ const DRAMAS = [
 
 const EPISODES = 6;
 const FREE_EPISODES = 2;
+// Real (non-placeholder) episode durations in seconds, keyed by `${dramaId}_ep${n}`.
+const REAL_DURATIONS: Record<string, number> = { dr_mama_ep1: 86, dr_mama_ep2: 88 };
 const PRICE_COINS = 30;
 
 async function main(): Promise<void> {
@@ -42,7 +44,7 @@ async function main(): Promise<void> {
       const free = n <= FREE_EPISODES;
       const ep = {
         title: `Episode ${n}`,
-        durationSec: 10,
+        durationSec: REAL_DURATIONS[`${d.id}_ep${n}`] ?? 10,
         hlsPath: `${d.slug}/ep${n}/master.m3u8`,
         free,
         priceCoins: free ? 0 : PRICE_COINS,
