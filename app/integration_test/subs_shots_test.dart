@@ -104,7 +104,14 @@ void main() {
         if (shown.isNotEmpty && shown != prevTxt) txt = shown;
       }
       prevTxt = txt;
-      if (txt.isNotEmpty) await t.runAsync(p.player.pause);
+      if (txt.isNotEmpty) {
+        await t.runAsync(() async {
+          await p.player.pause();
+          // freeze inside the cue so the shot still shows it
+          final back = p.player.state.position - const Duration(milliseconds: 400);
+          await p.player.seek(back.isNegative ? Duration.zero : back);
+        });
+      }
       await wait(1);
       anyText |= txt.isNotEmpty;
       debugPrint('SUBS: lang=$lang applied=${p.appliedSubtitle} current=${p.player.state.track.subtitle.id}/'
