@@ -15,7 +15,7 @@ Steps:
   4. Wrap lines (<=42 chars, max 2 lines), write media/<slug>/epN/subs/<lang>.vtt + <lang>.m3u8,
      rewrite master.m3u8 with one EXT-X-MEDIA per language, and write review/epNN.md.
 """
-import argparse, json, math, os, re, subprocess, sys, textwrap, urllib.request
+import argparse, shutil, json, math, os, re, subprocess, sys, textwrap, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BACKEND = os.path.dirname(os.path.dirname(HERE))
@@ -32,7 +32,14 @@ def is_cjk(text):
 
 def line_limit(text):
     return CJK_MAX_CHARS if is_cjk(text) else MAX_CHARS
-RENDITIONS = [("360p", 360, 640, "800k", "96k", 1000000), ("720p", 720, 1280, "2000k", "128k", 2400000)]
+# ABR ladder (portrait 9:16). 360p first = startup rung on weak networks.
+# (name, width, height, video bitrate, maxrate, bufsize, audio bitrate); audio AAC 48 kHz stereo on all rungs.
+RENDITIONS = [
+    ("360p", 360, 640, "800k", "880k", "1600k", "96k"),
+    ("540p", 540, 960, "1200k", "1320k", "2400k", "128k"),
+    ("720p", 720, 1280, "2500k", "2750k", "5000k", "128k"),
+]
+AUDIO_RATE = "48000"
 
 TS = r"(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{3})"
 
@@ -133,18 +140,29 @@ SEG = 2
 GOP = 60  # 2s @ 30fps (source is 30fps); force_key_frames guarantees a keyframe at every 2s boundary
 
 
+def probe(path, entries, stream="v:0"):
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", stream, "-show_entries", f"stream={entries}",
+                          "-of", "default=nw=1", path], capture_output=True, text=True).stdout
+    return dict(l.split("=", 1) for l in out.splitlines() if "=" in l)
+
+
 def transcode(video, out_dir):
-    for name, w, h, vb, ab, _ in RENDITIONS:
+    for name, w, h, vb, mx, buf, ab in RENDITIONS:
         d = os.path.join(out_dir, name)
         os.makedirs(d, exist_ok=True)
         for f in os.listdir(d):
             os.remove(os.path.join(d, f))
         subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", video, "-vf", f"scale={w}:{h},format=yuv420p",
-                        "-c:v", "libx264", "-preset", "medium", "-profile:v", "main", "-b:v", vb, "-maxrate", vb, "-bufsize", vb,
+                        "-c:v", "libx264", "-preset", "medium", "-profile:v", "main", "-b:v", vb, "-maxrate", mx, "-bufsize", buf,
                         "-g", str(GOP), "-keyint_min", str(GOP), "-sc_threshold", "0", "-force_key_frames", f"expr:gte(t,n_forced*{SEG})",
-                        "-c:a", "aac", "-b:a", ab, "-ac", "2", "-ar", "44100",
+                        "-c:a", "aac", "-b:a", ab, "-ac", "2", "-ar", AUDIO_RATE,
                         "-f", "hls", "-hls_time", str(SEG), "-hls_playlist_type", "vod",
                         "-hls_segment_filename", os.path.join(d, "seg_%03d.ts"), os.path.join(d, "index.m3u8")], check=True)
+    # drop rendition dirs that are no longer in the ladder (e.g. old src/)
+    keep = {r[0] for r in RENDITIONS} | {"subs"}
+    for x in os.listdir(out_dir):
+        if os.path.isdir(os.path.join(out_dir, x)) and x not in keep:
+            shutil.rmtree(os.path.join(out_dir, x))
 
 
 def playlist_duration(out_dir):
@@ -152,14 +170,30 @@ def playlist_duration(out_dir):
     return sum(float(x) for x in re.findall(r"#EXTINF:([\d.]+)", txt))
 
 
+def rendition_stats(d):
+    """Peak / average bits-per-second from actual segment sizes, plus resolution and RFC 6381 codec string."""
+    txt = open(os.path.join(d, "index.m3u8")).read()
+    segs = re.findall(r"#EXTINF:([\d.]+),\s*\n(\S+)", txt)
+    rates = [os.path.getsize(os.path.join(d, f)) * 8 / float(t) for t, f in segs]
+    tot = sum(os.path.getsize(os.path.join(d, f)) for _, f in segs) * 8 / sum(float(t) for t, _ in segs)
+    first = os.path.join(d, segs[0][1])
+    v = probe(first, "width,height,profile,level")
+    prof = {"High": "6400", "Main": "4d40", "Constrained Baseline": "42e0", "Baseline": "4200"}[v["profile"]]
+    a = probe(first, "profile", "a:0").get("profile", "LC")
+    return {"peak": math.ceil(max(rates) * 1.05 / 1000) * 1000, "avg": math.ceil(tot / 1000) * 1000,
+            "res": f'{v["width"]}x{v["height"]}', "codecs": f'avc1.{prof}{int(v["level"]):02x},mp4a.40.{5 if "HE" in a else 2}'}
+
+
 def write_master(out_dir):
-    lines = ["#EXTM3U", "#EXT-X-VERSION:3"]
+    lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-INDEPENDENT-SEGMENTS"]
     for code, label in LANGS:
         lines.append(f'#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="{label}",LANGUAGE="{code}",'
                      f'DEFAULT=NO,AUTOSELECT=YES,FORCED=NO,URI="subs/{code}.m3u8"')
-    for name, w, h, _, _, bw in RENDITIONS:
-        codecs = "avc1.4d401e" if h <= 640 else "avc1.4d401f"
-        lines += [f'#EXT-X-STREAM-INF:BANDWIDTH={bw},RESOLUTION={w}x{h},CODECS="{codecs},mp4a.40.2",SUBTITLES="subs"', f"{name}/index.m3u8"]
+    for r in RENDITIONS:  # ladder order: 360p first (startup)
+        name = r[0]
+        st = rendition_stats(os.path.join(out_dir, name))
+        lines += [f'#EXT-X-STREAM-INF:BANDWIDTH={st["peak"]},AVERAGE-BANDWIDTH={st["avg"]},RESOLUTION={st["res"]},'
+                  f'FRAME-RATE=30.000,CODECS="{st["codecs"]}",SUBTITLES="subs"', f"{name}/index.m3u8"]
     open(os.path.join(out_dir, "master.m3u8"), "w").write("\n".join(lines) + "\n")
 
 
