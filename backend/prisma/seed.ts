@@ -17,6 +17,12 @@ const DRAMAS = [
 ];
 
 const EPISODES = 6;
+// Fixed createdAt drives home/list ordering (createdAt desc): Mama-in-Law Wahala first.
+const CREATED_AT: Record<string, string> = {
+  dr_mama: '2026-10-03T00:00:00.000Z',
+  dr_prince: '2026-10-02T00:00:00.000Z',
+  dr_lagos: '2026-10-01T00:00:00.000Z',
+};
 const FREE_EPISODES = 2;
 // Real (non-placeholder) episode durations in seconds, keyed by `${dramaId}_ep${n}`.
 const REAL_DURATIONS: Record<string, number> = { dr_mama_ep1: 86, dr_mama_ep2: 88 };
@@ -32,6 +38,7 @@ async function main(): Promise<void> {
       description: d.description,
       coverUrl: `${d.slug}/cover.jpg`,
       status: 'published',
+      createdAt: new Date(CREATED_AT[d.id]),
       episodeCount: EPISODES,
       tags: { set: [], connect: d.tags.map((slug) => ({ slug })) },
     };
