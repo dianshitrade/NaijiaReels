@@ -224,6 +224,9 @@ SubtitleViewConfiguration playerSubtitleConfig(double letterboxGap) =>
     SubtitleViewConfiguration(
       visible: true,
       textAlign: TextAlign.center,
+      // media_kit scales subtitles by sqrt(area / 1920x1080) (~1/3 on a
+      // 360dp phone). Disable that so fontSize is real logical px (sp).
+      textScaler: TextScaler.noScaling,
       style: const TextStyle(
         fontSize: 17,
         height: 1.3,

@@ -52,8 +52,18 @@ void main() {
     await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 500)));
     await t.pump(const Duration(milliseconds: 100));
     await binding.takeScreenshot('player_subtitles');
+    final subFinder = find.text(sub.split('\n').first, findRichText: true);
+    final txt = find.byWidgetPredicate((w) => w is Text && (w.data ?? '').contains(p.player.state.subtitle.first.trim()));
+    if (txt.evaluate().isNotEmpty) {
+      final w = t.widget<Text>(txt.first);
+      final eff = w.textScaler?.scale(w.style?.fontSize ?? 0) ?? w.style?.fontSize;
+      debugPrint('SUBS: screen=${t.view.physicalSize / t.view.devicePixelRatio} '
+          'fontSize=${w.style?.fontSize} effectiveFontSize=$eff size=${t.getSize(txt.first)}');
+    } else {
+      debugPrint('SUBS: subtitle Text not found (${subFinder.evaluate().length})');
+    }
     expect(sub, isNotEmpty);
-    expect(find.text(p.player.state.subtitle.first), findsWidgets);
+    expect(txt, findsWidgets);
     await t.runAsync(() => pool.disposeAll().timeout(const Duration(seconds: 20)));
   }, timeout: const Timeout(Duration(minutes: 5)));
 }
