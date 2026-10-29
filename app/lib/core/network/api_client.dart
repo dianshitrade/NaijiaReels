@@ -13,10 +13,23 @@ final apiClientProvider =
 
 BaseOptions _options() => BaseOptions(
       baseUrl: Env.apiRoot,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 15),
+      // Render free tier cold start is ~50s, so allow 60s.
+      connectTimeout: const Duration(seconds: 60),
+      receiveTimeout: const Duration(seconds: 60),
+      sendTimeout: const Duration(seconds: 60),
       contentType: Headers.jsonContentType,
     );
+
+/// Pings /health so a sleeping (cold-start) server wakes up. Never throws.
+Future<bool> wakeServer() async {
+  try {
+    final res = await Dio(_options()).get<Object?>('${Env.apiRoot}/health');
+    return (res.statusCode ?? 0) < 500;
+  } catch (e) {
+    debugPrint('[api] wake failed: $e');
+    return false;
+  }
+}
 
 /// Guest login against the current base URL; stores tokens in Hive.
 Future<Map<String, dynamic>> guestLogin([Dio? raw]) async {

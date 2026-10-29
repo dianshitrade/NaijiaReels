@@ -8,7 +8,7 @@ class Env {
 
   static const String defaultApiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:4010',
+    defaultValue: 'https://naijareels-api.onrender.com',
   );
 
   static const String apiPrefix = '/api/v1';
@@ -16,7 +16,13 @@ class Env {
   static String get apiBaseUrl {
     final o = LocalStorage.apiBaseOverride;
     final base = (o != null && o.isNotEmpty) ? o : defaultApiBaseUrl;
-    return base.endsWith('/') ? base.substring(0, base.length - 1) : base;
+    var b = base.trim();
+    while (b.endsWith('/')) {
+      b = b.substring(0, b.length - 1);
+    }
+    // Accept bases given with the /api/v1 suffix too.
+    if (b.endsWith(apiPrefix)) b = b.substring(0, b.length - apiPrefix.length);
+    return b;
   }
 
   static String get apiRoot => '$apiBaseUrl$apiPrefix';

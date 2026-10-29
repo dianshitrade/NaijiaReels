@@ -37,7 +37,12 @@ class HomePage extends ConsumerWidget {
           ref.invalidate(walletProvider);
         },
         child: home.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 12),
+            Text('Loading… (server may need ~1 min to wake up)'),
+          ])),
           error: (e, _) => ListView(children: [
             Padding(padding: const EdgeInsets.all(24), child: Text('Load failed: $e')),
           ]),

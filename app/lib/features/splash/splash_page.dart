@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,6 +18,14 @@ class SplashPage extends StatefulWidget {
 
 class _SplashPageState extends State<SplashPage> {
   String? _error;
+  bool _slow = false;
+  Timer? _slowTimer;
+
+  @override
+  void dispose() {
+    _slowTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -24,12 +34,23 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   Future<void> _boot() async {
-    setState(() => _error = null);
+    setState(() {
+      _error = null;
+      _slow = false;
+    });
+    // If the server does not answer within 3s it is most likely cold-starting.
+    _slowTimer?.cancel();
+    _slowTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _slow = true);
+    });
     try {
+      await wakeServer();
       if (LocalStorage.accessToken == null) await guestLogin();
       if (mounted) context.go(Routes.home);
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
+    } finally {
+      _slowTimer?.cancel();
     }
   }
 
@@ -40,8 +61,18 @@ class _SplashPageState extends State<SplashPage> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const BrandLogo(fontSize: 40),
           const SizedBox(height: 24),
-          if (_error == null)
-            const CircularProgressIndicator()
+          if (_error == null) ...[
+            const CircularProgressIndicator(),
+            if (_slow)
+              const Padding(
+                key: Key('wakingHint'),
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Waking up the server, this can take about 1 minute…\n服务器唤醒中，约需 1 分钟…',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+          ]
           else ...[
             Padding(
               padding: const EdgeInsets.all(16),
