@@ -184,7 +184,9 @@ class PooledPlayer {
       // yo/fr/zh after en). So the HLS track is used for the language active
       // when the stream starts; a later switch to another language loads that
       // language's WebVTT directly when one exists.
-      final midSwitch = _hlsUsedFor != null && _hlsUsedFor != lang && ext != null;
+      // Also a mid-switch: turning subtitles ON after playback started with
+      // them off (sid=no) — the HLS rendition then never delivers cues either.
+      final midSwitch = ext != null && _hlsUsedFor != lang && (_hlsUsedFor != null || ready.value);
       if (hls != null && !midSwitch) {
         key = 'hls:${hls.id}';
         target = hls;

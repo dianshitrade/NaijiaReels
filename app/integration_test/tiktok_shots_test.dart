@@ -34,6 +34,8 @@ void main() {
     }
     debugPrint('QUALITY: loading poster=${poster.evaluate().isNotEmpty} '
         'spinner=${find.byKey(const ValueKey('player-loading')).evaluate().isNotEmpty}');
+    await wait(1500); // let the cover image decode (still before first frame)
+    debugPrint('QUALITY: loading poster still=${poster.evaluate().isNotEmpty}');
     await shot('tiktok_loading', settle: 300);
 
     var ready = false;
