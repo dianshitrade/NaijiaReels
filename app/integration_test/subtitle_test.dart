@@ -13,11 +13,13 @@ void main() {
   testWidgets('HLS subtitle track auto-selected and rendered', (t) async {
     MediaKit.ensureInitialized();
     final pool = PlayerPool();
-    // media_kit opens with real timers/platform IO; under testWidgets' fake
-    // async zone these never complete (the previous run hung here for 40+ min).
+    // Don't await open before frames exist: on Android media_kit's open waits on
+    // the video texture, which needs real frames. Start it, pump in real time.
     debugPrint('SUBS: opening $url');
-    final p = (await t.runAsync(() => pool.focus(url).timeout(const Duration(seconds: 90))))!;
-    debugPrint('SUBS: opened');
+    var opened = false;
+    pool.focus(url).then((_) { opened = true; debugPrint('SUBS: opened'); },
+        onError: (Object e) => debugPrint('SUBS: open error $e'));
+    final p = pool.get(url)!;
     await t.pumpWidget(MaterialApp(
       theme: ThemeData.dark(),
       home: Scaffold(
@@ -41,7 +43,7 @@ void main() {
       await t.pump(const Duration(milliseconds: 100));
       sub = p.player.state.subtitle.join(' ').trim();
       if (i % 5 == 0) {
-        debugPrint('SUBS: t=$i tracks.subtitle=${p.player.state.tracks.subtitle.map((e) => '${e.id}/${e.language}').toList()} '
+        debugPrint('SUBS: t=$i opened=$opened tracks.subtitle=${p.player.state.tracks.subtitle.map((e) => '${e.id}/${e.language}').toList()} '
             'current=${p.player.state.track.subtitle.id}/${p.player.state.track.subtitle.language} '
             'pos=${p.player.state.position} text="$sub"');
       }
