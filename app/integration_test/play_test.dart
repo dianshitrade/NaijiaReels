@@ -48,6 +48,12 @@ void main() {
       await t.pump(const Duration(milliseconds: 100));
     }
     await binding.takeScreenshot('player_playing');
+    if (!ok) {
+      debugPrint('PLAY: FAIL dump poster=${poster.evaluate().isNotEmpty} '
+          'error=${err.evaluate().isNotEmpty} '
+          'video=${find.byType(Video).evaluate().isNotEmpty} '
+          'retry=${find.byKey(const ValueKey('player-retry')).evaluate().isNotEmpty}');
+    }
     debugPrint('PLAY: RESULT ok=$ok');
     expect(ok, isTrue, reason: 'poster never cleared / error shown');
   }, timeout: const Timeout(Duration(minutes: 6)));

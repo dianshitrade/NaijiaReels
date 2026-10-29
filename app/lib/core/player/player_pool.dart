@@ -26,6 +26,7 @@ class PooledPlayer {
   final List<StreamSubscription<dynamic>> _subs = [];
   Timer? _timeout;
   Timer? _errGrace;
+  Timer? _playingFallback;
   String? lastError;
 
   void _markReady(String why) {
@@ -34,6 +35,7 @@ class PooledPlayer {
     failure.value = null;
     _timeout?.cancel();
     _errGrace?.cancel();
+    _playingFallback?.cancel();
     debugPrint('[Play] ready ($why) ${_sw.elapsedMilliseconds}ms url=$url');
   }
 
@@ -46,12 +48,48 @@ class PooledPlayer {
   }
 
   void _watchHealth() {
+    // Seed from current state (events may have already fired).
+    if ((player.state.width ?? 0) > 0) _markReady('seed-width=${player.state.width}');
+    if (player.state.position > Duration.zero) {
+      _markReady('seed-position=${player.state.position}');
+    }
     _subs.add(player.stream.width.listen((w) {
       if ((w ?? 0) > 0) _markReady('width=$w');
     }));
-    _subs.add(player.stream.position.listen((p) {
-      if (p > Duration.zero) _markReady('position=$p');
+    _subs.add(player.stream.height.listen((h) {
+      if ((h ?? 0) > 0) _markReady('height=$h');
     }));
+    _subs.add(player.stream.position.listen((pos) {
+      if (pos > Duration.zero) _markReady('position=$pos');
+    }));
+    // Safety net for devices where width/height never fire but playback works:
+    // if playing continuously for >=1s, drop the poster.
+    DateTime? playingSince;
+    _subs.add(player.stream.playing.listen((playing) {
+      if (playing) {
+        playingSince ??= DateTime.now();
+        final elapsed = DateTime.now().difference(playingSince!);
+        if (elapsed >= const Duration(seconds: 1)) {
+          _markReady('playing>${elapsed.inMilliseconds}ms');
+        } else {
+          _playingFallback?.cancel();
+          _playingFallback = Timer(
+            const Duration(seconds: 1) - elapsed,
+            () {
+              if (player.state.playing) _markReady('playing>=1s');
+            },
+          );
+        }
+      } else {
+        playingSince = null;
+        _playingFallback?.cancel();
+      }
+    }));
+    if (player.state.playing) {
+      _playingFallback = Timer(const Duration(seconds: 1), () {
+        if (player.state.playing) _markReady('seed-playing>=1s');
+      });
+    }
     _subs.add(player.stream.error.listen((e) {
       debugPrint('[Play] mpv error: $e url=$url');
       lastError = e;
@@ -126,6 +164,9 @@ class PooledPlayer {
     await _tracksSub?.cancel();
     _timeout?.cancel();
     _errGrace?.cancel();
+    _playingFallback?.cancel();
+    ready.dispose();
+    failure.dispose();
     for (final x in _subs) {
       await x.cancel();
     }

@@ -269,8 +269,8 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
       content = const Center(child: CircularProgressIndicator());
     }
     return Stack(fit: StackFit.expand, children: [
-      content,
-      // Cover poster until this page's player reports a video frame.
+      content, // Video (or spinner / lock / resolve-error) — bottom layer
+      // Cover poster ON TOP of Video until ready; must be removable (not opacity).
       if (st?.lockedPrice == null && st?.error == null)
         FirstFramePoster(
           key: ValueKey('poster-${ep.id}'),
@@ -317,9 +317,11 @@ const kSubtitleStyle = TextStyle(
 SubtitleViewConfiguration playerSubtitleConfig(double letterboxGap) =>
     const SubtitleViewConfiguration(visible: false);
 
-/// Shows [child] (cover) until [pooled] decodes a real frame (width>0 or
-/// position>0). If playback fails or times out, shows an error + Retry
-/// instead of leaving the cover up forever.
+/// Shows [child] (cover) ABOVE the Video until [pooled] is ready.
+/// Ready signals: width>0, height>0, position>0, or playing continuously
+/// for >=1s (vivo / some devices never emit width). On ready returns
+/// [SizedBox.shrink] so the poster is removed from the Stack — not hidden
+/// via opacity. On failure/timeout shows error + Retry instead of a stuck cover.
 class FirstFramePoster extends StatelessWidget {
   const FirstFramePoster({super.key, required this.pooled, required this.child, required this.onRetry});
   final PooledPlayer? pooled;
