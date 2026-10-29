@@ -369,3 +369,132 @@ class Comment {
         replyCount: (j['replyCount'] as num?)?.toInt() ?? 0,
       );
 }
+
+/// Contract `ShopPackage` (GET /shop/packages).
+class ShopPackage {
+  const ShopPackage({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.amountKobo,
+    this.coins = 0,
+    this.bonusCoins = 0,
+    this.originalAmountKobo,
+    this.tag,
+    this.endsAt,
+    this.vipDays,
+    this.playProductId,
+  });
+  final String id;
+  final String type; // coins | vip
+  final String title;
+  final int coins;
+  final int bonusCoins;
+  final int amountKobo;
+  final int? originalAmountKobo;
+  final String? tag; // first_recharge | limited | null
+  final DateTime? endsAt;
+  final int? vipDays;
+  final String? playProductId;
+  bool get isVip => type == 'vip';
+
+  factory ShopPackage.fromJson(Map<String, dynamic> j) => ShopPackage(
+        id: j['id'] as String,
+        type: j['type'] as String,
+        title: j['title'] as String,
+        amountKobo: (j['amountKobo'] as num).toInt(),
+        coins: (j['coins'] as num?)?.toInt() ?? 0,
+        bonusCoins: (j['bonusCoins'] as num?)?.toInt() ?? 0,
+        originalAmountKobo: (j['originalAmountKobo'] as num?)?.toInt(),
+        tag: j['tag'] as String?,
+        endsAt: j['endsAt'] == null ? null : DateTime.parse(j['endsAt'] as String),
+        vipDays: (j['vipDays'] as num?)?.toInt(),
+        playProductId: j['playProductId'] as String?,
+      );
+}
+
+/// Contract `Coupon` (GET /coupons).
+class Coupon {
+  const Coupon({
+    required this.id,
+    required this.title,
+    required this.type,
+    required this.status,
+    required this.expiresAt,
+    this.amountOffKobo,
+    this.bonusCoins,
+    this.minAmountKobo = 0,
+    this.packageIds = const [],
+  });
+  final String id;
+  final String title;
+  final String type; // amount_off | bonus_coins
+  final String status; // available | used | expired
+  final DateTime expiresAt;
+  final int? amountOffKobo;
+  final int? bonusCoins;
+  final int minAmountKobo;
+  final List<String> packageIds;
+
+  bool appliesTo(ShopPackage p) =>
+      status == 'available' && p.amountKobo >= minAmountKobo && (packageIds.isEmpty || packageIds.contains(p.id));
+
+  factory Coupon.fromJson(Map<String, dynamic> j) => Coupon(
+        id: j['id'] as String,
+        title: j['title'] as String,
+        type: j['type'] as String,
+        status: j['status'] as String,
+        expiresAt: DateTime.parse(j['expiresAt'] as String),
+        amountOffKobo: (j['amountOffKobo'] as num?)?.toInt(),
+        bonusCoins: (j['bonusCoins'] as num?)?.toInt(),
+        minAmountKobo: (j['minAmountKobo'] as num?)?.toInt() ?? 0,
+        packageIds: [for (final x in (j['packageIds'] as List? ?? const [])) x as String],
+      );
+}
+
+/// Contract `Order` (POST /orders, GET /orders/{id}).
+class ShopOrder {
+  const ShopOrder({
+    required this.id,
+    required this.productId,
+    required this.channel,
+    required this.status,
+    required this.amountKobo,
+    required this.coins,
+    required this.createdAt,
+    this.paystackAuthorizationUrl,
+    this.couponId,
+    this.discountKobo = 0,
+  });
+  final String id;
+  final String productId;
+  final String channel;
+  final String status; // pending | paid | failed | refunded
+  final int amountKobo;
+  final int coins;
+  final DateTime createdAt;
+  final String? paystackAuthorizationUrl;
+  final String? couponId;
+  final int discountKobo;
+  bool get isFinal => status != 'pending';
+
+  ShopOrder withStatus(String s) => ShopOrder(
+      id: id,
+      productId: productId,
+      channel: channel,
+      status: s,
+      amountKobo: amountKobo,
+      coins: coins,
+      createdAt: createdAt,
+      paystackAuthorizationUrl: paystackAuthorizationUrl,
+      couponId: couponId,
+      discountKobo: discountKobo);
+}
+
+/// ₦ from kobo: 150000 -> "₦1,500".
+String formatNaira(int kobo) {
+  final n = kobo ~/ 100;
+  final s = n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+  final k = kobo % 100;
+  return k == 0 ? '₦$s' : '₦$s.${k.toString().padLeft(2, '0')}';
+}

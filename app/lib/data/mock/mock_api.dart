@@ -18,8 +18,7 @@ const int kErrAlreadyClaimed = 40903;
 
 /// Per-drama contract fields missing from the live API (Drama + DramaDetail).
 class _DramaExtras {
-  const _DramaExtras(this.heatCount, this.watchingCount, this.badge, this.status, this.saveCount,
-      [this.topComment]);
+  const _DramaExtras(this.heatCount, this.watchingCount, this.badge, this.status, this.saveCount, [this.topComment]);
   final int saveCount;
   final int heatCount;
   final int watchingCount;
@@ -208,7 +207,7 @@ class MockApi {
 
   /// GET /api/v1/dramas/coming-soon (ordered by releaseAt asc).
   Future<List<ComingSoonDrama>> comingSoon() async {
-    ComingSoonDrama cs(String id, String title, List<String> tags, String desc, int total, String at, bool set, int n) {
+    ComingSoonDrama cs(String id, String title, List<String> tags, String desc, String at, bool set, int n) {
       final on = _reminders.contains(id) || (set && !_reminderOff.contains(id));
       return ComingSoonDrama(
         drama: Drama(
@@ -222,7 +221,8 @@ class MockApi {
             watchingCount: 0,
             badge: 'new',
             status: 'ongoing',
-            totalEpisodes: total),
+            // Unreleased mock titles: no invented episode totals.
+            totalEpisodes: null),
         releaseAt: DateTime.parse(at),
         reminderSet: on,
         reminderCount: _reminderCount[id] ?? n,
@@ -231,13 +231,13 @@ class MockApi {
 
     return [
       // Contract example (cover not uploaded yet → branded fallback cover).
-      cs('dr_owambe', 'Owambe Queens', ['comedy', 'romance'], 'Aso-ebi rivalry at the biggest party in Surulere.', 45,
+      cs('dr_owambe', 'Owambe Queens', ['comedy', 'romance'], 'Aso-ebi rivalry at the biggest party in Surulere.',
           '2026-11-14T18:00:00Z', true, 8120),
       // Placeholder titles (mock only).
       cs('dr_danfo', 'Danfo Driver Diaries', ['comedy', 'nollywood'], 'One bus, one driver, a hundred Lagos stories.',
-          30, '2026-11-21T18:00:00Z', false, 2310),
+          '2026-11-21T18:00:00Z', false, 2310),
       cs('dr_aso', 'Aso Rock Secrets', ['drama', 'thriller'], 'An intern stumbles on a secret that could shake Abuja.',
-          50, '2026-12-05T18:00:00Z', false, 1540),
+          '2026-12-05T18:00:00Z', false, 1540),
     ];
   }
 
@@ -356,27 +356,180 @@ class MockApi {
   /// POST /api/v1/rewards/{taskId}/claim → returns false on 40903 (already claimed).
   Future<bool> claim(String taskId) async => _claimed.add(taskId);
 
-  /// GET /api/v1/shop/packages (skeleton; contract field names).
-  List<Map<String, Object?>> shopPackages() => const [
+  /// Placeholder prices: every mock package ends in 99 kobo-naira so nobody
+  /// mistakes them for real pricing (backend has not set prices yet).
+  static const bool kMockPricesArePlaceholders = true;
+
+  /// GET /api/v1/shop/packages. Shape copied from the contract example;
+  /// amounts are PLACEHOLDERS (₦x,x99) until the backend publishes prices.
+  /// tag=first_recharge only while the user has no paid order (contract).
+  Future<List<ShopPackage>> shopPackages() async {
+    final now = DateTime.now().toUtc();
+    final items = <Map<String, Object?>>[
+      if (!_hasPaidOrder)
         {
-          'id': 'pkg_coins_100',
-          'title': '100 Coins',
-          'coins': 100,
-          'bonusCoins': 0,
-          'amountKobo': 50000,
-          'vipDays': 0,
-          'playProductId': 'coins_100'
+          'id': 'pk_coins_first',
+          'type': 'coins',
+          'title': 'First Recharge Special',
+          'coins': 300,
+          'bonusCoins': 300,
+          'amountKobo': 49900,
+          'originalAmountKobo': 99900,
+          'tag': 'first_recharge',
+          // contract: null = no countdown; mock gives a 24h window to show the timer
+          'endsAt': now.add(const Duration(hours: 23, minutes: 59)).toIso8601String(),
+          'vipDays': null,
+          'playProductId': 'coins_300_first',
         },
+      {
+        'id': 'pk_vip_week',
+        'type': 'vip',
+        'title': 'VIP Weekly',
+        'coins': 0,
+        'bonusCoins': 0,
+        'amountKobo': 119900,
+        'originalAmountKobo': 199900,
+        'tag': 'limited',
+        'endsAt': now.add(const Duration(hours: 5, minutes: 30)).toIso8601String(),
+        'vipDays': 7,
+        'playProductId': 'vip_week',
+      },
+      for (final (id, c, b, k) in const [
+        ('pk_coins_500', 500, 50, 79900),
+        ('pk_coins_1000', 1000, 150, 149900),
+        ('pk_coins_2500', 2500, 500, 349900),
+        ('pk_coins_5000', 5000, 1250, 699900),
+      ])
         {
-          'id': 'pkg_vip_7',
-          'title': 'VIP 7 days',
+          'id': id,
+          'type': 'coins',
+          'title': '${c == 1000 ? '1,000' : c == 2500 ? '2,500' : c == 5000 ? '5,000' : '$c'} Coins',
+          'coins': c,
+          'bonusCoins': b,
+          'amountKobo': k,
+          'originalAmountKobo': null,
+          'tag': null,
+          'endsAt': null,
+          'vipDays': null,
+          'playProductId': 'coins_$c',
+        },
+      for (final (id, t, d, k) in const [
+        ('pk_vip_month', 'VIP Monthly', 30, 349900),
+        ('pk_vip_year', 'VIP Yearly', 365, 2999900),
+      ])
+        {
+          'id': id,
+          'type': 'vip',
+          'title': t,
           'coins': 0,
           'bonusCoins': 0,
-          'amountKobo': 150000,
-          'vipDays': 7,
-          'playProductId': 'vip_7d'
+          'amountKobo': k,
+          'originalAmountKobo': null,
+          'tag': null,
+          'endsAt': null,
+          'vipDays': d,
+          'playProductId': id.substring(3),
         },
-      ];
+    ];
+    return [for (final j in items) ShopPackage.fromJson(j)];
+  }
+
+  bool _hasPaidOrder = false;
+  final Map<String, ShopOrder> _orders = {};
+  final Map<String, int> _polls = {};
+  int _orderSeq = 0;
+
+  /// Number of GET /orders/{id} polls before a mock order turns `paid`.
+  int pollsUntilPaid = 2;
+
+  /// GET /api/v1/coupons?status=available|used|expired (contract example + one used).
+  Future<List<Coupon>> coupons({String status = 'available'}) async {
+    final all = [
+      Coupon.fromJson(const {
+        'id': 'cp_n200_off',
+        'title': '₦200 off your next top-up',
+        'type': 'amount_off',
+        'amountOffKobo': 20000,
+        'bonusCoins': null,
+        'minAmountKobo': 100000,
+        'packageIds': <String>[],
+        'status': 'available',
+        'expiresAt': '2026-11-15T22:59:59Z',
+      }),
+      Coupon.fromJson(const {
+        'id': 'cp_bonus_100',
+        'title': '+100 bonus coins',
+        'type': 'bonus_coins',
+        'amountOffKobo': null,
+        'bonusCoins': 100,
+        'minAmountKobo': 0,
+        'packageIds': <String>[],
+        'status': 'used',
+        'expiresAt': '2026-11-30T22:59:59Z',
+      }),
+    ];
+    return all.where((c) => c.status == status && !_usedCoupons.contains(c.id)).toList();
+  }
+
+  final Set<String> _usedCoupons = {};
+
+  /// POST /api/v1/orders {productId, channel, couponId?}. 42202 when the
+  /// coupon does not apply, 40401 for unknown product.
+  Future<ShopOrder> createOrder(String productId, {String channel = 'paystack', String? couponId}) async {
+    final pkgs = await shopPackages();
+    final p = pkgs.where((x) => x.id == productId).firstOrNull;
+    if (p == null) throw ApiException(40401, 'Not found', status: 404);
+    var discount = 0;
+    if (couponId != null && channel == 'paystack') {
+      final c = (await coupons()).where((x) => x.id == couponId).firstOrNull;
+      if (c == null || !c.appliesTo(p)) throw ApiException(42202, 'Coupon not applicable', status: 422);
+      discount = c.amountOffKobo ?? 0;
+    }
+    final o = ShopOrder(
+      id: 'ord_${++_orderSeq}',
+      productId: p.id,
+      channel: channel,
+      status: 'pending',
+      amountKobo: p.amountKobo - discount,
+      coins: p.coins + p.bonusCoins,
+      createdAt: DateTime.now().toUtc(),
+      paystackAuthorizationUrl: channel == 'paystack' ? 'https://checkout.paystack.com/abc' : null,
+      couponId: channel == 'paystack' ? couponId : null,
+      discountKobo: discount,
+    );
+    _orders[o.id] = o;
+    _polls[o.id] = 0;
+    return o;
+  }
+
+  /// GET /api/v1/orders/{id}. Mock: pending for [pollsUntilPaid] polls, then paid.
+  Future<ShopOrder> getOrder(String id) async {
+    final o = _orders[id];
+    if (o == null) throw ApiException(40401, 'Not found', status: 404);
+    if (o.isFinal) return o;
+    final n = (_polls[id] ?? 0) + 1;
+    _polls[id] = n;
+    if (n < pollsUntilPaid) return o;
+    final paid = o.withStatus('paid');
+    _orders[id] = paid;
+    _hasPaidOrder = true;
+    if (paid.couponId != null) _usedCoupons.add(paid.couponId!);
+    return paid;
+  }
+
+  /// GET /api/v1/orders (mock: this session's orders, newest first).
+  Future<List<ShopOrder>> orders() async => _orders.values.toList().reversed.toList();
+
+  /// Create then poll GET /orders/{id} until final or [maxPolls].
+  Future<ShopOrder> buyAndPoll(String productId,
+      {String? couponId, Duration interval = const Duration(seconds: 1), int maxPolls = 30}) async {
+    var o = await createOrder(productId, couponId: couponId);
+    for (var i = 0; i < maxPolls && !o.isFinal; i++) {
+      await Future<void>.delayed(interval);
+      o = await getOrder(o.id);
+    }
+    return o;
+  }
 
   /// GET /api/v1/rewards/summary (skeleton; contract field names).
   Map<String, Object?> rewardsSummary() => const {
@@ -405,6 +558,13 @@ final chartsProvider = FutureProvider.autoDispose
 /// GET /dramas/coming-soon
 final comingSoonProvider =
     FutureProvider.autoDispose<List<ComingSoonDrama>>((ref) => ref.watch(mockApiProvider).comingSoon());
+
+/// GET /shop/packages
+final shopPackagesProvider =
+    FutureProvider.autoDispose<List<ShopPackage>>((ref) => ref.watch(mockApiProvider).shopPackages());
+
+/// GET /coupons?status=available
+final couponsProvider = FutureProvider.autoDispose<List<Coupon>>((ref) => ref.watch(mockApiProvider).coupons());
 
 final mockApiProvider = Provider<MockApi>((ref) => MockApi(ref.watch(repositoryProvider)));
 

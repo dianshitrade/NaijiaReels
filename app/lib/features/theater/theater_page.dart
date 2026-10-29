@@ -525,7 +525,11 @@ class _ComingSoonPageState extends ConsumerState<ComingSoonPage> {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(color: Colors.white70)),
                           const SizedBox(height: 4),
-                          Text('${c.drama.plannedEpisodes} EPs · ${compactCount(n)} want to watch',
+                          Text(
+                              [
+                                if (c.drama.plannedEpisodes > 0) '${c.drama.plannedEpisodes} EPs',
+                                '${compactCount(n)} want to watch'
+                              ].join(' · '),
                               key: ValueKey('coming-count-${c.drama.id}'),
                               style: const TextStyle(color: Colors.white54, fontSize: 12.5)),
                           const SizedBox(height: 8),

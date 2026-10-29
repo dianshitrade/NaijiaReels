@@ -1,3 +1,4 @@
+import '../shop/shop_page.dart';
 import 'package:flutter/material.dart';
 
 import '../rewards/rewards_page.dart';
@@ -22,7 +23,7 @@ class _HomePageState extends State<HomePage> {
       body: IndexedStack(index: _tab, children: [
         HomeFeedPage(active: _tab == 0, onOpenRewards: () => setState(() => _tab = 3)),
         const TheaterPage(),
-        const ShopPlaceholder(),
+        const ShopPage(),
         const RewardsPage(),
         const MePlaceholder(),
       ]),

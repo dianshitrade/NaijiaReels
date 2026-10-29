@@ -70,6 +70,16 @@ void main() {
     await shot('hongguo_theater_coming_soon', settle: 2000);
     await t.pageBack();
     await wait(800);
+    // --- Shop ---
+    await t.tap(find.text('Shop').last);
+    for (var i = 0; i < 30 && find.byKey(const ValueKey('shop-list')).evaluate().isEmpty; i++) {
+      await wait(500);
+    }
+    debugPrint('SHOP: list=${find.byKey(const ValueKey('shop-list')).evaluate().isNotEmpty} '
+        'countdown=${find.byKey(const ValueKey('countdown-pk_coins_first')).evaluate().isNotEmpty}');
+    await shot('hongguo_shop', settle: 2500);
+    await t.tap(find.text('Theater').last);
+    await wait(800);
     final poster = find.byKey(const ValueKey('first-frame-poster'));
     GoRouter.of(t.element(find.byKey(const ValueKey('theater-grid')).first)).push('/drama/dr_mama/play?ep=0');
     for (var i = 0; i < 100 && poster.evaluate().isEmpty; i++) {
