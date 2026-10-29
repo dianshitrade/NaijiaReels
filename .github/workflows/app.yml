@@ -129,6 +129,12 @@ jobs:
           adb logcat -d > $OUT/play_logcat.txt || true
           grep -iE 'flutter|media_kit|mpv|exoplayer|Player|FlutterError|PLAY:' $OUT/play_logcat.txt > $OUT/play_fail.log || true
           [ "$RC" = 0 ] && RC=$PRC
+          adb logcat -c || true
+          SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/play_ux_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/play_ux.log
+          URC=${PIPESTATUS[0]}
+          adb logcat -d > $OUT/play_ux_logcat.txt || true
+          grep -E 'UX:|\[Play\] (ready|startup|hls)|first frame|preload|Failed to create file cache' $OUT/play_ux_logcat.txt $OUT/play_ux.log > $OUT/play_ux_timing.txt || true
+          [ "$RC" = 0 ] && RC=$URC
           curl -s -m 90 -o /dev/null -w 'warm-up media %{http_code}\n' https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/master.m3u8 || true
           SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/subtitle_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/subtitle.log
           SRC=${PIPESTATUS[0]}

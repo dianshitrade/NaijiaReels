@@ -1,7 +1,8 @@
-import 'package:media_kit/media_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../app/theme.dart';
 import '../../core/network/api_response.dart';
@@ -39,6 +40,19 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
   bool _dialogOpen = false;
   String? _title;
   String _dramaCover = '';
+
+  /// Per-episode local UX state (no backend yet).
+  final _liked = <int, bool>{};
+  final _likeCount = <int, int>{};
+  final _saved = <int, bool>{};
+  final _localComments = <int, List<String>>{};
+  bool _showPlayIcon = false;
+  Offset? _heartAt;
+  int _heartKey = 0;
+
+  /// Injectable for tests / share_plus mock.
+  Future<void> Function(String text, {String? subject}) shareFn = (text, {subject}) =>
+      SharePlus.instance.share(ShareParams(text: text, subject: subject));
 
   @override
   void initState() {
@@ -92,6 +106,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     String? nextUrl;
     if (i + 1 < _episodes.length) nextUrl = (await _resolve(i + 1)).url;
     if (!mounted || i != _index) return;
+    setState(() => _showPlayIcon = false);
     if (cur.url != null) {
       // Don't await before building: on Android media_kit's open() waits for
       // the Video texture, which only exists once the Video widget is mounted.
@@ -163,11 +178,139 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     if (mounted && i == _index) await _focus(i);
   }
 
-  @override
-  void dispose() {
-    _pool.disposeAll();
-    _page.dispose();
-    super.dispose();
+  PooledPlayer? _pooledFor(int i) {
+    final st = _states[i];
+    if (st?.url == null) return null;
+    return _pool.get(st!.url!);
+  }
+
+  Future<void> _togglePlayPause(int i) async {
+    final p = _pooledFor(i);
+    if (p == null || !(p.ready.value)) return;
+    if (p.player.state.playing) {
+      await p.player.pause();
+      if (mounted) setState(() => _showPlayIcon = true);
+    } else {
+      await p.player.play();
+      if (mounted) setState(() => _showPlayIcon = false);
+    }
+  }
+
+  void _toggleLike(int i, {Offset? at}) {
+    setState(() {
+      final next = !(_liked[i] ?? false);
+      _liked[i] = next;
+      final base = _likeCount.putIfAbsent(i, () => 128 + (i * 7) % 50);
+      _likeCount[i] = (base + (next ? 1 : -1)).clamp(0, 1 << 30);
+      if (next && at != null) {
+        _heartAt = at;
+        _heartKey++;
+      } else if (next) {
+        _heartAt = const Offset(0.5, 0.45);
+        _heartKey++;
+      }
+    });
+  }
+
+  void _toggleSave(int i) {
+    setState(() => _saved[i] = !(_saved[i] ?? false));
+    final on = _saved[i] ?? false;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(on ? 'Saved to watchlist (local)' : 'Removed from watchlist'),
+      duration: const Duration(seconds: 1),
+    ));
+  }
+
+  Future<void> _share(int i) async {
+    final ep = _episodes[i];
+    final title = _title ?? 'NaijaReels';
+    final text =
+        'Watch "$title" EP${ep.episodeNo} on NaijaReels 🎬\nhttps://naijareels.app/drama/${widget.dramaId}?ep=$i';
+    await shareFn(text, subject: title);
+  }
+
+  void _showComments(int i) {
+    final ctrl = TextEditingController();
+    final list = _localComments.putIfAbsent(i, () => <String>[]);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1A1A1A),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: SafeArea(
+            child: SizedBox(
+              height: MediaQuery.of(ctx).size.height * 0.55,
+              child: Column(children: [
+                const SizedBox(height: 8),
+                Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(children: [
+                    Text('Comments', style: Theme.of(ctx).textTheme.titleMedium),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: Colors.white12, borderRadius: BorderRadius.circular(8)),
+                      child: const Text('coming soon', style: TextStyle(fontSize: 11)),
+                    ),
+                  ]),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: list.isEmpty
+                      ? const Center(
+                          child: Text('No comments yet — local only for now',
+                              style: TextStyle(color: Colors.white54)))
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(12),
+                          itemCount: list.length,
+                          itemBuilder: (_, j) => ListTile(
+                            leading: const CircleAvatar(child: Icon(Icons.person, size: 18)),
+                            title: Text(list[j]),
+                            dense: true,
+                          ),
+                        ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  child: Row(children: [
+                    Expanded(
+                      child: TextField(
+                        key: const ValueKey('comment-input'),
+                        controller: ctrl,
+                        decoration: const InputDecoration(
+                          hintText: 'Add a comment (saved locally)',
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      key: const ValueKey('comment-send'),
+                      icon: const Icon(Icons.send),
+                      onPressed: () {
+                        final t = ctrl.text.trim();
+                        if (t.isEmpty) return;
+                        setState(() => list.add(t));
+                        ctrl.clear();
+                        Navigator.pop(ctx);
+                        _showComments(i); // refresh sheet
+                      },
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showEpisodes() {
@@ -201,6 +344,13 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
   }
 
   @override
+  void dispose() {
+    _pool.disposeAll();
+    _page.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
@@ -213,7 +363,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
             icon: const Icon(Icons.grid_view_rounded),
             onPressed: _showEpisodes,
           ),
-        const WalletChip(),
+        const WalletChip(tappable: true),
       ]),
       body: _episodes.isEmpty
           ? const Center(child: CircularProgressIndicator())
@@ -283,17 +433,105 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
             showFallbackTitle: false,
           ),
         ),
+      // Tap layer ABOVE video/poster, BELOW chrome actions.
+      // Only onTap/onDoubleTap — no drag handlers — so PageView vertical swipe works.
+      if (st?.lockedPrice == null && st?.error == null)
+        PlayerTapLayer(
+          key: ValueKey('tap-$i'),
+          showPlayIcon: i == _index && _showPlayIcon,
+          heartAt: i == _index ? _heartAt : null,
+          heartKey: _heartKey,
+          onTap: () => _togglePlayPause(i),
+          onDoubleTap: (pos) => _toggleLike(i, at: pos),
+        ),
       PlayerChrome(
         title: _title ?? '',
         episodeNo: ep.episodeNo,
         episodeTitle: ep.title,
         total: _episodes.length,
         index: i,
+        liked: _liked[i] ?? false,
+        likeCount: _likeCount[i] ?? (128 + (i * 7) % 50),
+        saved: _saved[i] ?? false,
+        onLike: () => _toggleLike(i),
+        onComment: () => _showComments(i),
+        onSave: () => _toggleSave(i),
+        onShare: () => _share(i),
       ),
+      if (pooled != null && st?.lockedPrice == null && st?.error == null)
+        Positioned(
+          left: 8,
+          right: 72,
+          bottom: 8,
+          child: PlayerProgress(key: ValueKey('progress-${pooled.url}'), player: pooled.player),
+        ),
       // Own subtitle layer, bound only to this page's player.
       if (pooled != null && st?.lockedPrice == null && st?.error == null)
         PlayerSubtitleOverlay(key: ValueKey('subs-${pooled.url}'), player: pooled.player),
     ]);
+  }
+}
+
+/// Full-screen tap/double-tap layer. Display-only overlays use IgnorePointer;
+/// this layer owns pause/play + double-tap like without claiming vertical drags.
+class PlayerTapLayer extends StatelessWidget {
+  const PlayerTapLayer({
+    super.key,
+    required this.onTap,
+    required this.onDoubleTap,
+    this.showPlayIcon = false,
+    this.heartAt,
+    this.heartKey = 0,
+  });
+  final VoidCallback onTap;
+  final void Function(Offset normalized) onDoubleTap;
+  final bool showPlayIcon;
+  final Offset? heartAt;
+  final int heartKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (ctx, c) {
+      return GestureDetector(
+        key: const ValueKey('player-tap-layer'),
+        behavior: HitTestBehavior.translucent,
+        onTap: onTap,
+        onDoubleTapDown: (d) {
+          final n = Offset(
+            (d.localPosition.dx / c.maxWidth).clamp(0.0, 1.0),
+            (d.localPosition.dy / c.maxHeight).clamp(0.0, 1.0),
+          );
+          onDoubleTap(n);
+        },
+        onDoubleTap: () {}, // required paired with onDoubleTapDown
+        child: Stack(fit: StackFit.expand, children: [
+          if (showPlayIcon)
+            const IgnorePointer(
+              child: Center(
+                child: Icon(Icons.play_arrow_rounded,
+                    key: ValueKey('player-play-icon'), size: 88, color: Colors.white70),
+              ),
+            ),
+          if (heartAt != null)
+            Positioned(
+              left: heartAt!.dx * c.maxWidth - 40,
+              top: heartAt!.dy * c.maxHeight - 40,
+              child: IgnorePointer(
+                child: TweenAnimationBuilder<double>(
+                  key: ValueKey('heart-$heartKey'),
+                  tween: Tween(begin: 0.6, end: 1.4),
+                  duration: const Duration(milliseconds: 500),
+                  builder: (_, v, child) => Opacity(
+                    opacity: (1.6 - v).clamp(0.0, 1.0),
+                    child: Transform.scale(scale: v, child: child),
+                  ),
+                  child: const Icon(Icons.favorite, size: 80, color: Colors.redAccent),
+                ),
+              ),
+            ),
+        ]),
+      );
+    });
   }
 }
 
@@ -332,7 +570,12 @@ class FirstFramePoster extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = pooled;
     final poster = IgnorePointer(child: KeyedSubtree(key: const ValueKey('first-frame-poster'), child: child));
-    if (p == null) return poster;
+    if (p == null) {
+      return Stack(fit: StackFit.expand, children: [
+        poster,
+        const IgnorePointer(child: Center(child: CircularProgressIndicator())),
+      ]);
+    }
     return ValueListenableBuilder<String?>(
       valueListenable: p.failure,
       builder: (ctx, fail, _) => fail != null
@@ -343,7 +586,11 @@ class FirstFramePoster extends StatelessWidget {
                   ? const SizedBox.shrink()
                   : Stack(fit: StackFit.expand, children: [
                       poster,
-                      const Center(child: CircularProgressIndicator()),
+                      const IgnorePointer(
+                        child: Center(
+                          child: CircularProgressIndicator(key: ValueKey('player-loading')),
+                        ),
+                      ),
                     ]),
             ),
     );
@@ -414,7 +661,8 @@ class PlayerSubtitleOverlay extends StatelessWidget {
   }
 }
 
-/// Short-drama style overlay: bottom gradient, title, EP badge, side actions.
+/// Short-drama style overlay: bottom gradient + title (IgnorePointer) and
+/// interactive right-hand actions (Like / Comment / Save / Share).
 class PlayerChrome extends StatelessWidget {
   const PlayerChrome({
     super.key,
@@ -423,73 +671,270 @@ class PlayerChrome extends StatelessWidget {
     required this.episodeTitle,
     required this.total,
     required this.index,
+    this.liked = false,
+    this.likeCount = 0,
+    this.saved = false,
+    this.onLike,
+    this.onComment,
+    this.onSave,
+    this.onShare,
   });
   final String title;
   final int episodeNo;
   final String episodeTitle;
   final int total;
   final int index;
+  final bool liked;
+  final int likeCount;
+  final bool saved;
+  final VoidCallback? onLike;
+  final VoidCallback? onComment;
+  final VoidCallback? onSave;
+  final VoidCallback? onShare;
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Stack(fit: StackFit.expand, children: [
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment(0, 0.2),
-              end: Alignment.bottomCenter,
-              colors: [Colors.transparent, Color(0xE6000000)],
+    return Stack(fit: StackFit.expand, children: [
+      // Pure display: gradient + titles must NOT eat taps.
+      IgnorePointer(
+        child: Stack(fit: StackFit.expand, children: [
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment(0, 0.2),
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, Color(0xE6000000)],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 72,
+            bottom: 52,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
+                child: Text('EP $episodeNo / $total',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+              ),
+              const SizedBox(height: 8),
+              if (title.isNotEmpty)
+                Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+              Text(episodeTitle,
+                  maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70)),
+            ]),
+          ),
+        ]),
+      ),
+      Positioned(
+        right: 8,
+        bottom: 120,
+        child: Column(children: [
+          _ActionButton(
+            key: const ValueKey('player-like'),
+            icon: liked ? Icons.favorite : Icons.favorite_border,
+            color: liked ? Colors.redAccent : Colors.white,
+            label: _fmtCount(likeCount),
+            onTap: onLike,
+          ),
+          const SizedBox(height: 14),
+          _ActionButton(
+            key: const ValueKey('player-comment'),
+            icon: Icons.chat_bubble_outline,
+            label: 'Comment',
+            onTap: onComment,
+          ),
+          const SizedBox(height: 14),
+          _ActionButton(
+            key: const ValueKey('player-save'),
+            icon: saved ? Icons.bookmark : Icons.bookmark_border,
+            color: saved ? AppColors.gold : Colors.white,
+            label: 'Save',
+            onTap: onSave,
+          ),
+          const SizedBox(height: 14),
+          _ActionButton(
+            key: const ValueKey('player-share'),
+            icon: Icons.share,
+            label: 'Share',
+            onTap: onShare,
+          ),
+        ]),
+      ),
+    ]);
+  }
+
+  static String _fmtCount(int n) {
+    if (n >= 10000) return '${(n / 1000).toStringAsFixed(1)}k';
+    return '$n';
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.color = Colors.white,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Column(children: [
+            Icon(icon, size: 32, color: color),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(fontSize: 11, color: Colors.white)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+
+/// Binds [PlayerSeekBar] to a media_kit [Player].
+class PlayerProgress extends StatelessWidget {
+  const PlayerProgress({super.key, required this.player});
+  final Player player;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Duration>(
+      stream: player.stream.position,
+      initialData: player.state.position,
+      builder: (_, pos) => StreamBuilder<Duration>(
+        stream: player.stream.duration,
+        initialData: player.state.duration,
+        builder: (_, dur) => StreamBuilder<Duration>(
+          stream: player.stream.buffer,
+          initialData: player.state.buffer,
+          builder: (_, buf) => PlayerSeekBar(
+            position: pos.data ?? Duration.zero,
+            duration: dur.data ?? Duration.zero,
+            buffer: buf.data ?? Duration.zero,
+            onSeek: (d) => player.seek(d),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String fmtDur(Duration d) {
+  final m = d.inMinutes.toString().padLeft(2, '0');
+  final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+  return '$m:$s';
+}
+
+/// Real playback progress (position/duration) with drag-to-seek.
+/// 32dp touch area; claims horizontal AND vertical drags so dragging the bar
+/// never swipes episodes, and has its own tap so it never toggles pause.
+class PlayerSeekBar extends StatefulWidget {
+  const PlayerSeekBar({
+    super.key,
+    required this.position,
+    required this.duration,
+    required this.onSeek,
+    this.buffer = Duration.zero,
+  });
+  final Duration position;
+  final Duration duration;
+  final Duration buffer;
+  final ValueChanged<Duration> onSeek;
+
+  @override
+  State<PlayerSeekBar> createState() => _PlayerSeekBarState();
+}
+
+class _PlayerSeekBarState extends State<PlayerSeekBar> {
+  double? _drag; // 0..1 while dragging
+
+  double _frac(Duration d) {
+    final total = widget.duration.inMilliseconds;
+    if (total <= 0) return 0;
+    return (d.inMilliseconds / total).clamp(0.0, 1.0);
+  }
+
+  void _update(Offset local, double width) {
+    setState(() => _drag = (local.dx / width).clamp(0.0, 1.0));
+  }
+
+  void _end() {
+    final f = _drag;
+    setState(() => _drag = null);
+    if (f == null || widget.duration <= Duration.zero) return;
+    widget.onSeek(Duration(milliseconds: (f * widget.duration.inMilliseconds).round()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dragging = _drag != null;
+    final value = _drag ?? _frac(widget.position);
+    final shown = dragging
+        ? Duration(milliseconds: (value * widget.duration.inMilliseconds).round())
+        : widget.position;
+    return LayoutBuilder(builder: (ctx, c) {
+      final w = c.maxWidth;
+      return Column(mainAxisSize: MainAxisSize.min, children: [
+        if (dragging)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text('${fmtDur(shown)} / ${fmtDur(widget.duration)}',
+                key: const ValueKey('seek-time'),
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white,
+                    shadows: [Shadow(color: Colors.black, blurRadius: 4)])),
+          ),
+        GestureDetector(
+          key: const ValueKey('player-seekbar'),
+          behavior: HitTestBehavior.opaque,
+          onTap: () {}, // swallow so the tap layer doesn't pause
+          onHorizontalDragStart: (d) => _update(d.localPosition, w),
+          onHorizontalDragUpdate: (d) => _update(d.localPosition, w),
+          onHorizontalDragEnd: (_) => _end(),
+          onHorizontalDragCancel: () => setState(() => _drag = null),
+          onVerticalDragStart: (_) {}, // block PageView episode swipe on the bar
+          onVerticalDragUpdate: (_) {},
+          child: SizedBox(
+            height: 32,
+            width: w,
+            child: Center(
+              child: SizedBox(
+                height: dragging ? 6 : 3,
+                child: Stack(fit: StackFit.expand, children: [
+                  const ColoredBox(color: Colors.white24),
+                  FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: _frac(widget.buffer),
+                    child: const ColoredBox(color: Colors.white38),
+                  ),
+                  FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: value,
+                    child: const ColoredBox(color: AppColors.primary),
+                  ),
+                ]),
+              ),
             ),
           ),
         ),
-        Positioned(
-          right: 12,
-          bottom: 140,
-          child: Column(children: [
-            for (final a in const [
-              (Icons.favorite, 'Like'),
-              (Icons.bookmark, 'Save'),
-              (Icons.share, 'Share'),
-            ]) ...[
-              Icon(a.$1, size: 32, color: Colors.white),
-              Text(a.$2, style: const TextStyle(fontSize: 11)),
-              const SizedBox(height: 16),
-            ],
-          ]),
-        ),
-        Positioned(
-          left: 16,
-          right: 72,
-          bottom: 40,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
-              child: Text('EP $episodeNo / $total',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-            ),
-            const SizedBox(height: 8),
-            if (title.isNotEmpty)
-              Text(title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-            Text(episodeTitle,
-                maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70)),
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: LinearProgressIndicator(
-                value: total == 0 ? 0 : (index + 1) / total,
-                minHeight: 3,
-                color: AppColors.primary,
-                backgroundColor: Colors.white24,
-              ),
-            ),
-          ]),
-        ),
-      ]),
-    );
+      ]);
+    });
   }
 }

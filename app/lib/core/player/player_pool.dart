@@ -9,7 +9,14 @@ import 'subtitle_select.dart';
 
 /// One media_kit player bound to a source URL (HLS .m3u8 or MP4).
 class PooledPlayer {
-  PooledPlayer._(this.url) : player = Player() {
+  PooledPlayer._(this.url)
+      : player = Player(
+          configuration: const PlayerConfiguration(
+            // Default 32MB demuxer cache delays first frame on slow links.
+            bufferSize: 4 * 1024 * 1024,
+            logLevel: MPVLogLevel.warn,
+          ),
+        ) {
     controller = VideoController(player);
   }
 
@@ -28,6 +35,7 @@ class PooledPlayer {
   Timer? _errGrace;
   Timer? _playingFallback;
   String? lastError;
+  bool _upgradedBitrate = false;
 
   void _markReady(String why) {
     if (ready.value) return;
@@ -37,6 +45,22 @@ class PooledPlayer {
     _errGrace?.cancel();
     _playingFallback?.cancel();
     debugPrint('[Play] ready ($why) ${_sw.elapsedMilliseconds}ms url=$url');
+    // After first frame at low HLS rung, allow 720p upgrade.
+    unawaited(_upgradeHlsBitrate());
+  }
+
+  Future<void> _upgradeHlsBitrate() async {
+    if (_upgradedBitrate) return;
+    _upgradedBitrate = true;
+    final native = player.platform;
+    if (native is! NativePlayer) return;
+    try {
+      // "no" = unlimited → mpv may switch to higher HLS variant (720p).
+      await native.setProperty('hls-bitrate', 'no');
+      debugPrint('[Play] hls-bitrate upgraded to unlimited url=$url');
+    } catch (e) {
+      debugPrint('[Play] hls-bitrate upgrade failed: $e');
+    }
   }
 
   void _fail(String msg) {
@@ -97,7 +121,7 @@ class PooledPlayer {
       _errGrace = Timer(const Duration(seconds: 10), () => _fail('Playback error: $e'));
     }));
     _subs.add(player.stream.log.listen((l) {
-      if (l.level == 'error' || l.level == 'fatal') {
+      if (l.level == 'error' || l.level == 'fatal' || l.level == 'warn') {
         debugPrint('[Play] mpv ${l.level} ${l.prefix}: ${l.text.trim()}');
       }
     }));
@@ -105,6 +129,7 @@ class PooledPlayer {
         ? 'Playback error: $lastError'
         : 'Video took too long to start. Check your network and retry.'));
   }
+
   late final VideoController controller;
   final Stopwatch _sw = Stopwatch();
   StreamSubscription<int?>? _firstFrameSub;
@@ -131,6 +156,20 @@ class PooledPlayer {
     });
   }
 
+  Future<void> _applyStartupProps() async {
+    final native = player.platform;
+    if (native is! NativePlayer) return;
+    // media_kit defaults cache-on-disk=yes; without a writable cache-dir
+    // lavf logs "Failed to create file cache" and can stall start.
+    await native.setProperty('cache', 'no');
+    await native.setProperty('cache-on-disk', 'no');
+    // Prefer ~360p (master lists 1Mbps) until first frame, then upgrade.
+    await native.setProperty('hls-bitrate', '1100000');
+    await native.setProperty('slang', 'en,eng');
+    await native.setProperty('sub-auto', 'fuzzy');
+    debugPrint('[Play] startup props: cache=no hls-bitrate=1100000 url=$url');
+  }
+
   Future<void> _open({required bool play}) async {
     _sw.start();
     _watchHealth();
@@ -144,11 +183,7 @@ class PooledPlayer {
       }
     });
     _watchSubtitles();
-    final native = player.platform;
-    if (native is NativePlayer) {
-      await native.setProperty('slang', 'en,eng');
-      await native.setProperty('sub-auto', 'fuzzy');
-    }
+    await _applyStartupProps();
     await player.setPlaylistMode(PlaylistMode.single);
     try {
       await player.open(Media(url), play: play);
@@ -201,7 +236,11 @@ class PlayerPool {
   /// Activate [current] (play) and preload [next] (paused); pause others.
   Future<PooledPlayer> focus(String current, {String? next}) async {
     final cur = await obtain(current, play: true);
-    if (next != null) await obtain(next);
+    if (next != null) {
+      // Preload next while current plays — open paused so first swipe is warm.
+      debugPrint('[PlayerPool] preload next=$next');
+      await obtain(next);
+    }
     // make sure current stays MRU
     _players.remove(current);
     _players[current] = cur;
