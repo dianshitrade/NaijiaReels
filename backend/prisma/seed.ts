@@ -81,7 +81,7 @@ async function main(): Promise<void> {
     await prisma.dramaSeason.upsert({
       where: { dramaId_seasonNo: { dramaId: d.id, seasonNo: 1 } },
       create: { dramaId: d.id, seasonNo: 1, title: 'Season 1', coverPath: cover },
-      update: { coverPath: cover },
+      update: { title: 'Season 1', coverPath: cover },
     });
   }
   console.log(`seeded ${DRAMAS.length} dramas x ${EPISODES} episodes`);
