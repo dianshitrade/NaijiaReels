@@ -184,12 +184,22 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     } else if (st?.error != null) {
       content = Center(child: Text('Error: ${st!.error}'));
     } else if (pooled != null) {
-      content = Center(
-        child: AspectRatio(
-          aspectRatio: 9 / 16,
-          child: Video(controller: pooled.controller, fit: BoxFit.cover, controls: NoVideoControls),
-        ),
-      );
+      content = LayoutBuilder(builder: (ctx, c) {
+        final boxH = (c.maxWidth * 16 / 9).clamp(0.0, c.maxHeight);
+        final gap = (c.maxHeight - boxH) / 2; // letterbox below the 9:16 box
+        return Center(
+          child: AspectRatio(
+            aspectRatio: 9 / 16,
+            child: Video(
+              key: ValueKey(pooled.url),
+              controller: pooled.controller,
+              fit: BoxFit.cover,
+              controls: NoVideoControls,
+              subtitleViewConfiguration: playerSubtitleConfig(gap),
+            ),
+          ),
+        );
+      });
     } else {
       content = const Center(child: CircularProgressIndicator());
     }
@@ -205,6 +215,29 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     ]);
   }
 }
+
+/// Subtitles: white, black outline, ~17sp, centered and wrapped, lifted
+/// above the PlayerChrome progress bar / title block (top ~ 170dp from the
+/// screen bottom) and kept clear of the right-hand action column.
+const kSubtitleBottomFromScreen = 175.0;
+SubtitleViewConfiguration playerSubtitleConfig(double letterboxGap) =>
+    SubtitleViewConfiguration(
+      visible: true,
+      textAlign: TextAlign.center,
+      style: const TextStyle(
+        fontSize: 17,
+        height: 1.3,
+        color: Colors.white,
+        fontWeight: FontWeight.w600,
+        backgroundColor: Color(0x8C000000),
+        shadows: [
+          Shadow(color: Colors.black, blurRadius: 3, offset: Offset(1, 1)),
+          Shadow(color: Colors.black, blurRadius: 3, offset: Offset(-1, -1)),
+        ],
+      ),
+      padding: EdgeInsets.fromLTRB(
+          24, 0, 76, (kSubtitleBottomFromScreen - letterboxGap).clamp(24.0, 400.0)),
+    );
 
 /// Short-drama style overlay: bottom gradient, title, EP badge, side actions.
 class PlayerChrome extends StatelessWidget {

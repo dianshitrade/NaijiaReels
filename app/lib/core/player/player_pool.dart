@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import 'subtitle_select.dart';
+
 /// One media_kit player bound to a source URL (HLS .m3u8 or MP4).
 class PooledPlayer {
   PooledPlayer._(this.url) : player = Player() {
@@ -17,6 +19,27 @@ class PooledPlayer {
   final Stopwatch _sw = Stopwatch();
   StreamSubscription<int?>? _firstFrameSub;
   Duration? firstFrame;
+  StreamSubscription<Tracks>? _tracksSub;
+  String? _pickedSubId;
+
+  /// Each player selects its own subtitle track whenever its track list
+  /// changes (initial open, re-open after unlock), so tracks never leak
+  /// between pooled episodes.
+  void _watchSubtitles() {
+    _tracksSub?.cancel();
+    _pickedSubId = null;
+    _tracksSub = player.stream.tracks.listen((tracks) async {
+      final pick = pickSubtitleTrack(tracks.subtitle);
+      final cur = player.state.track.subtitle;
+      debugPrint('[Subs] url=$url tracks.subtitle='
+          '${tracks.subtitle.map((t) => '${t.id}/${t.language}/${t.title}').toList()} '
+          'current=${cur.id} pick=${pick?.id}/${pick?.language}');
+      if (pick == null || (cur.id == pick.id && _pickedSubId == pick.id)) return;
+      _pickedSubId = pick.id;
+      await player.setSubtitleTrack(pick);
+      debugPrint('[Subs] selected ${pick.id}/${pick.language} url=$url');
+    });
+  }
 
   Future<void> _open({required bool play}) async {
     _sw.start();
@@ -29,12 +52,19 @@ class PooledPlayer {
         _firstFrameSub?.cancel();
       }
     });
+    _watchSubtitles();
+    final native = player.platform;
+    if (native is NativePlayer) {
+      await native.setProperty('slang', 'en,eng');
+      await native.setProperty('sub-auto', 'fuzzy');
+    }
     await player.setPlaylistMode(PlaylistMode.single);
     await player.open(Media(url), play: play);
   }
 
   Future<void> dispose() async {
     await _firstFrameSub?.cancel();
+    await _tracksSub?.cancel();
     await player.dispose();
   }
 }
