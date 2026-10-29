@@ -216,20 +216,29 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     }
   }
 
-  void _toggleLike(int i, {Offset? at}) {
+  void _toggleLike(int i) {
     setState(() {
       final next = !(_liked[i] ?? false);
       _liked[i] = next;
       final base = _likeCount.putIfAbsent(i, () => 128 + (i * 7) % 50);
       _likeCount[i] = (base + (next ? 1 : -1)).clamp(0, 1 << 30);
-      if (next && at != null) {
-        _heartAt = at;
-        _heartKey++;
-      } else if (next) {
-        _heartAt = const Offset(0.5, 0.45);
-        _heartKey++;
-      }
     });
+  }
+
+  /// Double-tap on the video: like (never unlike) and pop a heart at [at].
+  /// The right-rail button only toggles state and never shows a heart.
+  void _doubleTapLike(int i, Offset at) {
+    if (!(_liked[i] ?? false)) _toggleLike(i);
+    setState(() {
+      _heartAt = at;
+      _heartKey++; // new key replaces any running heart: no stacking
+    });
+  }
+
+  void _onHeartEnd(int key) {
+    if (mounted && key == _heartKey && _heartAt != null) {
+      setState(() => _heartAt = null);
+    }
   }
 
   void _toggleSave(int i) {
@@ -464,7 +473,8 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
           heartAt: i == _index ? _heartAt : null,
           heartKey: _heartKey,
           onTap: () => _togglePlayPause(i),
-          onDoubleTap: (pos) => _toggleLike(i, at: pos),
+          onDoubleTap: (pos) => _doubleTapLike(i, pos),
+          onHeartEnd: _onHeartEnd,
         ),
       PlayerChrome(
         title: _title ?? '',
@@ -509,7 +519,9 @@ class PlayerTapLayer extends StatelessWidget {
     this.showPlayIcon = false,
     this.heartAt,
     this.heartKey = 0,
+    this.onHeartEnd,
   });
+  final void Function(int heartKey)? onHeartEnd;
   final VoidCallback onTap;
   final void Function(Offset normalized) onDoubleTap;
   final bool showPlayIcon;
@@ -546,11 +558,13 @@ class PlayerTapLayer extends StatelessWidget {
               child: IgnorePointer(
                 child: TweenAnimationBuilder<double>(
                   key: ValueKey('heart-$heartKey'),
-                  tween: Tween(begin: 0.6, end: 1.4),
+                  tween: Tween(begin: 0.0, end: 1.0),
                   duration: const Duration(milliseconds: 500),
-                  builder: (_, v, child) => Opacity(
-                    opacity: (1.6 - v).clamp(0.0, 1.0),
-                    child: Transform.scale(scale: v, child: child),
+                  onEnd: () => onHeartEnd?.call(heartKey),
+                  builder: (_, t, child) => Opacity(
+                    // full until 40%, then linearly to exactly 0 at the end
+                    opacity: t <= 0.4 ? 1.0 : (1.0 - (t - 0.4) / 0.6).clamp(0.0, 1.0),
+                    child: Transform.scale(scale: 0.6 + 0.8 * t, child: child),
                   ),
                   child: const Icon(Icons.favorite, size: 80, color: Colors.redAccent),
                 ),
