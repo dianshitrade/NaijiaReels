@@ -13,6 +13,7 @@ import '../../data/mock/mock_api.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../../shared/widgets/ankara_pattern.dart';
+import '../../shared/widgets/comments_sheet.dart';
 import '../../shared/widgets/episode_cover.dart';
 import '../player/episode_feed_page.dart';
 import '../player/subtitle_controls.dart';
@@ -160,7 +161,7 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
 
   bool _isLiked(FeedItem it) => _liked[it.episode.id] ?? it.liked;
   bool _isSaved(FeedItem it) => _saved[it.drama.id] ?? it.saved;
-  int _likes(FeedItem it) => _likeCount[it.episode.id] ?? it.likeCount;
+  int _likes(FeedItem it) => _likeCount[it.episode.id] ?? it.episode.likeCount;
 
   void _toggleLike(FeedItem it, {bool? to}) {
     final now = to ?? !_isLiked(it);
@@ -185,30 +186,13 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
     context.push(Routes.play(it.drama.id, idx));
   }
 
-  void _showComments(FeedItem it) {
-    final c = it.drama.topComment;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.surface,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Comments', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 12),
-          if (c != null)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const CircleAvatar(
-                  backgroundColor: AppColors.primary, child: Icon(Icons.person, color: Colors.white)),
-              title: Text(c.userName ?? 'Guest'),
-              subtitle: Text(c.text),
-              trailing: Text('♥ ${compactCount(c.likeCount)}'),
-            ),
-          const Text('Full comments are coming soon.', style: TextStyle(color: Colors.white60)),
-        ]),
-      ),
-    );
-  }
+  final Map<String, int> _commentCount = {};
+  int _comments(FeedItem it) => _commentCount[it.episode.id] ?? it.episode.commentCount;
+
+  void _showComments(FeedItem it) => showCommentsSheet(context,
+      episodeId: it.episode.id,
+      commentCount: _comments(it),
+      onPosted: (n) => setState(() => _commentCount[it.episode.id] = n));
 
   @override
   Widget build(BuildContext context) {
@@ -334,12 +318,14 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
                 key: const ValueKey('feed-save'),
                 icon: _isSaved(it) ? Icons.star : Icons.star_border,
                 color: _isSaved(it) ? AppColors.gold : Colors.white,
-                label: compactCount(d.heatCount ?? 0),
+                label: compactCount(
+                    (d.saveCount ?? 0) + (_isSaved(it) && !it.saved ? 1 : 0) - (!_isSaved(it) && it.saved ? 1 : 0)),
                 onTap: () => _toggleSave(it)),
             const SizedBox(height: 14),
             PlayerRailButton(
+                key: const ValueKey('feed-comment'),
                 icon: Icons.chat_bubble,
-                label: compactCount(d.topComment?.likeCount ?? 0),
+                label: compactCount(_comments(it)),
                 onTap: () => _showComments(it)),
             const SizedBox(height: 14),
             PlayerRailButton(
@@ -490,7 +476,7 @@ class _Info extends StatelessWidget {
     final d = item.drama;
     final tags = [
       for (final t in d.tags.take(3)) t.isEmpty ? t : t[0].toUpperCase() + t.substring(1),
-      'Season 1',
+      'Season ${item.episode.seasonNumber}',
     ];
     return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       Align(
@@ -520,7 +506,7 @@ class _Info extends StatelessWidget {
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.video_library, size: 15, color: Colors.white),
             const SizedBox(width: 6),
-            const Text('Season 1', style: TextStyle(color: Colors.white, fontSize: 13)),
+            Text('Season ${item.episode.seasonNumber}', style: const TextStyle(color: Colors.white, fontSize: 13)),
             Container(width: 1, height: 12, color: Colors.white38, margin: const EdgeInsets.symmetric(horizontal: 8)),
             Text('${compactCount(d.watchingCount ?? 0)} watching',
                 key: const ValueKey('feed-watching'), style: const TextStyle(color: Colors.white, fontSize: 13)),

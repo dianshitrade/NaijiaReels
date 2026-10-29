@@ -9,11 +9,13 @@ class Drama {
     required this.episodeCount,
     this.description,
     this.episodes = const [],
-    this.completed = false,
     this.heatCount,
     this.watchingCount,
     this.badge,
-    this.status,
+    this.status = 'ongoing',
+    this.currentSeason = 1,
+    this.saveCount,
+    this.commentCount,
     this.totalEpisodes,
     this.topComment,
   });
@@ -25,8 +27,15 @@ class Drama {
   /// 'hot' | 'new' | null
   final String? badge;
 
-  /// 'completed' | 'ongoing'
-  final String? status;
+  /// Contract-required: 'completed' | 'ongoing' (no client-side inference).
+  final String status;
+
+  /// Contract-required; latest season number (>= 1).
+  final int currentSeason;
+  final int? saveCount;
+
+  /// Drama detail only: total comments across episodes.
+  final int? commentCount;
 
   /// Planned total episodes; [episodeCount] is released so far.
   final int? totalEpisodes;
@@ -39,6 +48,9 @@ class Drama {
     int? watchingCount,
     String? badge,
     String? status,
+    int? currentSeason,
+    int? saveCount,
+    int? commentCount,
     int? totalEpisodes,
     TopComment? topComment,
     List<EpisodeItem>? episodes,
@@ -51,17 +63,21 @@ class Drama {
         episodeCount: episodeCount,
         description: description,
         episodes: episodes ?? this.episodes,
-        completed: status != null ? status == 'completed' : completed,
         heatCount: heatCount ?? this.heatCount,
         watchingCount: watchingCount ?? this.watchingCount,
         badge: badge ?? this.badge,
         status: status ?? this.status,
+        currentSeason: currentSeason ?? this.currentSeason,
+        saveCount: saveCount ?? this.saveCount,
+        commentCount: commentCount ?? this.commentCount,
         totalEpisodes: totalEpisodes ?? this.totalEpisodes,
         topComment: topComment ?? this.topComment,
       );
 
-  /// All episodes released (API `status: completed` / `completed: true`).
-  final bool completed;
+  bool get completed => status == 'completed';
+
+  /// Distinct seasons present in [episodes] (ascending).
+  List<int> get seasons => ({for (final e in episodes) e.seasonNumber}.toList()..sort());
   final String id;
   final String title;
   final String coverUrl;
@@ -77,17 +93,15 @@ class Drama {
         tags: ((j['tags'] as List?) ?? const []).cast<String>(),
         episodeCount: (j['episodeCount'] as num?)?.toInt() ?? 0,
         description: j['description'] as String?,
-        episodes: ((j['episodes'] as List?) ?? const [])
-            .map((e) => EpisodeItem.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        completed: j['completed'] == true ||
-            (j['status'] as String?)?.toLowerCase() == 'completed' ||
-            ((j['episodeCount'] as num?)?.toInt() ?? 0) > 0 &&
-                ((j['episodes'] as List?)?.length ?? 0) >= ((j['episodeCount'] as num?)?.toInt() ?? 0),
+        episodes:
+            ((j['episodes'] as List?) ?? const []).map((e) => EpisodeItem.fromJson(e as Map<String, dynamic>)).toList(),
         heatCount: (j['heatCount'] as num?)?.toInt(),
         watchingCount: (j['watchingCount'] as num?)?.toInt(),
         badge: j['badge'] as String?,
-        status: j['status'] as String?,
+        status: (j['status'] as String?) ?? 'ongoing', // required by contract; old backend omits it
+        currentSeason: (j['currentSeason'] as num?)?.toInt() ?? 1,
+        saveCount: (j['saveCount'] as num?)?.toInt(),
+        commentCount: (j['commentCount'] as num?)?.toInt(),
         totalEpisodes: (j['totalEpisodes'] as num?)?.toInt(),
         topComment: TopComment.tryParse(j['topComment']),
       );
@@ -137,6 +151,9 @@ class FeedEpisode {
     required this.episodeNo,
     required this.durationSec,
     required this.locked,
+    this.seasonNumber = 1,
+    this.likeCount = 0,
+    this.commentCount = 0,
     this.free = false,
     this.priceCoins = 0,
     this.coverUrl,
@@ -148,6 +165,9 @@ class FeedEpisode {
   final int episodeNo;
   final int durationSec;
   final bool locked;
+  final int seasonNumber;
+  final int likeCount;
+  final int commentCount;
   final bool free;
   final int priceCoins;
   final String? coverUrl;
@@ -165,13 +185,11 @@ class FeedItem {
     required this.episode,
     this.liked = false,
     this.saved = false,
-    this.likeCount = 0,
   });
   final Drama drama;
   final FeedEpisode episode;
   final bool liked;
   final bool saved;
-  final int likeCount;
 }
 
 class EpisodeItem {
@@ -184,7 +202,15 @@ class EpisodeItem {
     required this.priceCoins,
     this.durationSec = 0,
     this.coverUrl,
+    this.seasonNumber = 1,
+    this.likeCount,
+    this.commentCount,
   });
+
+  /// Contract: episodeNo restarts at 1 in every season.
+  final int seasonNumber;
+  final int? likeCount;
+  final int? commentCount;
 
   final String id;
   final int episodeNo;
@@ -205,6 +231,9 @@ class EpisodeItem {
         locked: j['locked'] as bool? ?? false,
         priceCoins: (j['priceCoins'] as num?)?.toInt() ?? 0,
         durationSec: (j['durationSec'] as num?)?.toInt() ?? 0,
+        seasonNumber: (j['seasonNumber'] as num?)?.toInt() ?? 1,
+        likeCount: (j['likeCount'] as num?)?.toInt(),
+        commentCount: (j['commentCount'] as num?)?.toInt(),
         coverUrl: j['coverUrl'] is String && (j['coverUrl'] as String).isNotEmpty
             ? Env.resolve(j['coverUrl'] as String)
             : null,
@@ -223,9 +252,8 @@ class HomeData {
   final List<HomeSection> sections;
 
   factory HomeData.fromJson(Map<String, dynamic> j) {
-    List<Drama> list(Object? l) => ((l as List?) ?? const [])
-        .map((e) => Drama.fromJson(e as Map<String, dynamic>))
-        .toList();
+    List<Drama> list(Object? l) =>
+        ((l as List?) ?? const []).map((e) => Drama.fromJson(e as Map<String, dynamic>)).toList();
     return HomeData(
       banners: list(j['banners']),
       sections: ((j['sections'] as List?) ?? const [])
@@ -264,19 +292,23 @@ class SubtitleRef {
 }
 
 class PlayInfo {
-  const PlayInfo(this.hlsUrl, this.expiresAt, {this.subtitles = const []});
+  const PlayInfo(this.hlsUrl, this.expiresAt,
+      {this.subtitles = const [], this.seasonNumber = 1, this.likeCount, this.commentCount});
   final String hlsUrl;
   final String? expiresAt;
+  final int seasonNumber;
+  final int? likeCount;
+  final int? commentCount;
 
   /// Empty when the API omits `subtitles` (older backend).
   final List<SubtitleRef> subtitles;
   factory PlayInfo.fromJson(Map<String, dynamic> j) => PlayInfo(
         j['hlsUrl'] as String,
         j['expiresAt'] as String?,
-        subtitles: ((j['subtitles'] as List?) ?? const [])
-            .map(SubtitleRef.tryParse)
-            .whereType<SubtitleRef>()
-            .toList(),
+        seasonNumber: (j['seasonNumber'] as num?)?.toInt() ?? 1,
+        likeCount: (j['likeCount'] as num?)?.toInt(),
+        commentCount: (j['commentCount'] as num?)?.toInt(),
+        subtitles: ((j['subtitles'] as List?) ?? const []).map(SubtitleRef.tryParse).whereType<SubtitleRef>().toList(),
       );
 }
 
@@ -284,6 +316,55 @@ class UnlockResult {
   const UnlockResult(this.episodeId, this.balanceCoins);
   final String episodeId;
   final int balanceCoins;
-  factory UnlockResult.fromJson(Map<String, dynamic> j) => UnlockResult(
-      j['episodeId'] as String, (j['balanceCoins'] as num?)?.toInt() ?? 0);
+  factory UnlockResult.fromJson(Map<String, dynamic> j) =>
+      UnlockResult(j['episodeId'] as String, (j['balanceCoins'] as num?)?.toInt() ?? 0);
+}
+
+/// Contract `CommentUser`.
+class CommentUser {
+  const CommentUser({required this.id, required this.nickname, this.avatarUrl});
+  final String id;
+  final String nickname;
+  final String? avatarUrl;
+  factory CommentUser.fromJson(Map<String, dynamic> j) => CommentUser(
+      id: j['id'] as String, nickname: j['nickname'] as String? ?? '', avatarUrl: j['avatarUrl'] as String?);
+}
+
+/// Contract `Comment` (GET/POST /episodes/{id}/comments).
+class Comment {
+  const Comment({
+    required this.id,
+    required this.user,
+    required this.text,
+    required this.likeCount,
+    required this.liked,
+    required this.createdAt,
+    this.replyCount = 0,
+  });
+  final String id;
+  final CommentUser user;
+  final String text;
+  final int likeCount;
+  final bool liked;
+  final DateTime createdAt;
+  final int replyCount;
+
+  Comment copyWith({int? likeCount, bool? liked}) => Comment(
+      id: id,
+      user: user,
+      text: text,
+      likeCount: likeCount ?? this.likeCount,
+      liked: liked ?? this.liked,
+      createdAt: createdAt,
+      replyCount: replyCount);
+
+  factory Comment.fromJson(Map<String, dynamic> j) => Comment(
+        id: j['id'] as String,
+        user: CommentUser.fromJson(j['user'] as Map<String, dynamic>),
+        text: j['text'] as String? ?? '',
+        likeCount: (j['likeCount'] as num?)?.toInt() ?? 0,
+        liked: j['liked'] == true,
+        createdAt: DateTime.parse(j['createdAt'] as String),
+        replyCount: (j['replyCount'] as num?)?.toInt() ?? 0,
+      );
 }

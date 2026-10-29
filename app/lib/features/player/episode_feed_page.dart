@@ -11,8 +11,10 @@ import '../../app/router.dart';
 import '../../app/theme.dart';
 import '../../core/network/api_response.dart';
 import '../../core/player/player_pool.dart';
+import '../../data/mock/mock_api.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../../shared/widgets/comments_sheet.dart';
 import '../../shared/widgets/episode_cover.dart';
 import '../rewards/rewards_page.dart';
 import 'subtitle_controls.dart';
@@ -69,7 +71,8 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
   final _liked = <int, bool>{};
   final _likeCount = <int, int>{};
   final _saved = <int, bool>{};
-  final _localComments = <int, List<String>>{};
+  final _commentCount = <int, int>{};
+  int _saveCount = 0;
   bool _showPlayIcon = false;
   Offset? _heartAt;
   int _heartKey = 0;
@@ -101,7 +104,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
 
   Future<void> _load() async {
     if (mounted && _loadError != null) setState(() => _loadError = null);
-    final Drama d;
+    Drama d;
     try {
       d = await ref
           .read(dramaDetailProvider(widget.dramaId).future)
@@ -116,7 +119,9 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
       return;
     }
     if (!mounted) return;
+    if (kUseMocks) d = enrichDrama(d); // contract counters not live yet
     setState(() {
+      _saveCount = d.saveCount ?? 0;
       _episodes = d.episodes;
       _title = d.title;
       _dramaCover = d.coverUrl;
@@ -263,7 +268,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     setState(() {
       final next = !(_liked[i] ?? false);
       _liked[i] = next;
-      final base = _likeCount.putIfAbsent(i, () => 128 + (i * 7) % 50);
+      final base = _likeCount.putIfAbsent(i, () => _episodes[i].likeCount ?? 0);
       _likeCount[i] = (base + (next ? 1 : -1)).clamp(0, 1 << 30);
     });
   }
@@ -302,96 +307,10 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     await shareFn(text, subject: title);
   }
 
-  void _showComments(int i) {
-    final ctrl = TextEditingController();
-    final list = _localComments.putIfAbsent(i, () => <String>[]);
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF1A1A1A),
-      builder: (ctx) {
-        return Padding(
-          padding:
-              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: SafeArea(
-            child: SizedBox(
-              height: MediaQuery.of(ctx).size.height * 0.55,
-              child: Column(children: [
-                const SizedBox(height: 8),
-                Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(2))),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(children: [
-                    Text('Comments',
-                        style: Theme.of(ctx).textTheme.titleMedium),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: Colors.white12,
-                          borderRadius: BorderRadius.circular(8)),
-                      child: const Text('coming soon',
-                          style: TextStyle(fontSize: 11)),
-                    ),
-                  ]),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: list.isEmpty
-                      ? const Center(
-                          child: Text('No comments yet — local only for now',
-                              style: TextStyle(color: Colors.white54)))
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(12),
-                          itemCount: list.length,
-                          itemBuilder: (_, j) => ListTile(
-                            leading: const CircleAvatar(
-                                child: Icon(Icons.person, size: 18)),
-                            title: Text(list[j]),
-                            dense: true,
-                          ),
-                        ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  child: Row(children: [
-                    Expanded(
-                      child: TextField(
-                        key: const ValueKey('comment-input'),
-                        controller: ctrl,
-                        decoration: const InputDecoration(
-                          hintText: 'Add a comment (saved locally)',
-                          isDense: true,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      key: const ValueKey('comment-send'),
-                      icon: const Icon(Icons.send),
-                      onPressed: () {
-                        final t = ctrl.text.trim();
-                        if (t.isEmpty) return;
-                        setState(() => list.add(t));
-                        ctrl.clear();
-                        Navigator.pop(ctx);
-                        _showComments(i); // refresh sheet
-                      },
-                    ),
-                  ]),
-                ),
-              ]),
-            ),
-          ),
-        );
-      },
-    );
-  }
+  void _showComments(int i) => showCommentsSheet(context,
+      episodeId: _episodes[i].id,
+      commentCount: _commentCount[i] ?? _episodes[i].commentCount ?? 0,
+      onPosted: (n) => setState(() => _commentCount[i] = n));
 
   void _showEpisodes() {
     showModalBottomSheet<void>(
@@ -417,7 +336,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
                   '${_completed ? 'Completed' : 'Ongoing'} · All ${_episodes.length} EPs',
                   style: const TextStyle(fontSize: 13, color: Colors.white60)),
               const SizedBox(height: 12),
-              EpisodeGrid(
+              SeasonedEpisodeGrid(
                 episodes: _episodes,
                 dramaCoverUrl: _dramaCover,
                 dramaTitle: _title ?? '',
@@ -679,10 +598,10 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
           total: _episodes.length,
           completed: _completed,
           liked: _liked[i] ?? false,
-          likeCount: _likeCount[i] ?? (128 + (i * 7) % 50),
+          likeCount: _likeCount[i] ?? ep.likeCount ?? 0,
           saved: _saved[i] ?? false,
-          commentCount: 24 + (i * 5) % 17 + (_localComments[i]?.length ?? 0),
-          saveCount: 40 + (i * 3) % 23 + ((_saved[i] ?? false) ? 1 : 0),
+          commentCount: _commentCount[i] ?? ep.commentCount ?? 0,
+          saveCount: _saveCount + ((_saved[i] ?? false) ? 1 : 0),
           description: _description,
           synopsisOpen: _synopsisOpen,
           onToggleSynopsis: () =>

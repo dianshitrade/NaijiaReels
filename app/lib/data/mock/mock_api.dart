@@ -1,9 +1,11 @@
 // Central mock layer for the five-tab contract (naija-backend
-// contracts/openapi.yaml, branch feat/T13-five-tabs-contract @ bedf328).
+// contracts/openapi.yaml, branch feat/T13-five-tabs-contract @ 449cef1).
 // None of these endpoints exist on the backend yet. Field names and sample
 // values are copied from the contract. Flip [kUseMocks] off once they ship;
 // every mocked call lives in this file only.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/network/api_response.dart';
 
 import '../models.dart';
 import '../repository.dart';
@@ -16,8 +18,9 @@ const int kErrAlreadyClaimed = 40903;
 
 /// Per-drama contract fields missing from the live API (Drama + DramaDetail).
 class _DramaExtras {
-  const _DramaExtras(this.heatCount, this.watchingCount, this.badge, this.status, this.totalEpisodes,
+  const _DramaExtras(this.heatCount, this.watchingCount, this.badge, this.status, this.totalEpisodes, this.saveCount,
       [this.topComment]);
+  final int saveCount;
   final int heatCount;
   final int watchingCount;
   final String? badge;
@@ -28,10 +31,10 @@ class _DramaExtras {
 
 /// Contract examples for known ids; others derive stable values from the id.
 const Map<String, _DramaExtras> _extras = {
-  'dr_mama': _DramaExtras(1284000, 3120, 'hot', 'ongoing', 60,
+  'dr_mama': _DramaExtras(1284000, 3120, 'hot', 'ongoing', 60, 43860,
       TopComment(text: 'Mama Bisi no go kill me with laugh 😂', likeCount: 4210, userName: 'Tunde_Ib')),
-  'dr_prince': _DramaExtras(856000, 1450, 'new', 'completed', 40),
-  'dr_lagos': _DramaExtras(402000, 610, null, 'ongoing', 50),
+  'dr_prince': _DramaExtras(856000, 1450, 'new', 'completed', 40, 29240),
+  'dr_lagos': _DramaExtras(402000, 610, null, 'ongoing', 50, 36550),
 };
 
 /// Contract chart examples: rankChange per id (null = new entry).
@@ -43,27 +46,76 @@ const _comments = [
   'The plot twist for episode 2 shock me',
 ];
 
+/// Contract per-episode counters (FeedEpisode / play examples).
+const Map<String, (int, int)> _epCounts = {'dr_mama_ep1': (2310, 148), 'dr_prince_ep5': (980, 37)};
+
+int _hash(String id) => id.codeUnits.fold<int>(7, (a, c) => (a * 31 + c) & 0x7fffffff);
+
+/// Fills Episode.seasonNumber/likeCount/commentCount (contract 449cef1).
+EpisodeItem enrichEpisode(EpisodeItem e) {
+  final c = _epCounts[e.id];
+  final h = _hash(e.id);
+  return EpisodeItem(
+    id: e.id,
+    episodeNo: e.episodeNo,
+    title: e.title,
+    free: e.free,
+    locked: e.locked,
+    priceCoins: e.priceCoins,
+    durationSec: e.durationSec,
+    coverUrl: e.coverUrl,
+    seasonNumber: e.seasonNumber,
+    likeCount: e.likeCount ?? c?.$1 ?? 100 + h % 3000,
+    commentCount: e.commentCount ?? c?.$2 ?? 10 + h % 200,
+  );
+}
+
+/// Contract-required status/currentSeason come from the mock for known ids
+/// (live API does not send them yet); no completion is inferred client-side.
 Drama enrichDrama(Drama d) {
   final e = _extras[d.id];
+  final eps = [for (final x in d.episodes) enrichEpisode(x)];
   if (e != null) {
     return d.copyWith(
         heatCount: d.heatCount ?? e.heatCount,
         watchingCount: d.watchingCount ?? e.watchingCount,
         badge: d.badge ?? e.badge,
-        status: d.status ?? e.status,
+        status: e.status,
+        saveCount: d.saveCount ?? e.saveCount,
+        commentCount: d.commentCount ?? (d.id == 'dr_mama' ? 1874 : null),
         totalEpisodes: d.totalEpisodes ?? e.totalEpisodes,
-        topComment: d.topComment ?? e.topComment);
+        topComment: d.topComment ?? e.topComment,
+        episodes: eps);
   }
-  final h = d.id.codeUnits.fold<int>(7, (a, c) => (a * 31 + c) & 0x7fffffff);
+  final h = _hash(d.id);
   return d.copyWith(
     heatCount: d.heatCount ?? 120000 + h % 900000,
     watchingCount: d.watchingCount ?? 300 + h % 4000,
     badge: d.badge ?? (h % 3 == 0 ? 'hot' : (h % 3 == 1 ? 'new' : null)),
-    status: d.status ?? (d.completed ? 'completed' : 'ongoing'),
+    saveCount: d.saveCount ?? 5000 + h % 40000,
     totalEpisodes: d.totalEpisodes ?? (d.completed ? d.episodeCount : d.episodeCount + 20),
     topComment:
         d.topComment ?? TopComment(text: _comments[h % _comments.length], likeCount: 200 + h % 3000, userName: null),
+    episodes: eps,
   );
+}
+
+/// Contract comment errors.
+const int kErrCommentInvalid = 42203;
+const int kErrTooManyRequests = 42901;
+
+/// English message for a failed comment POST (42203 reason / 42901).
+String commentErrorMessage(ApiException e) {
+  if (e.code == kErrTooManyRequests) return 'You are commenting too fast. Please wait a moment.';
+  if (e.code == kErrCommentInvalid) {
+    final r = e.data is Map ? (e.data as Map)['reason'] : null;
+    return switch (r) {
+      'empty' => 'Comment cannot be empty.',
+      'too_long' => 'Comment is too long (max 500 characters).',
+      _ => 'This comment contains words that are not allowed.',
+    };
+  }
+  return 'Could not post comment. Try again.';
 }
 
 /// Mock implementations of contract endpoints. Builds on real data where it
@@ -97,7 +149,6 @@ class MockApi {
       final ep = d.episodes.firstWhere((e) => !e.locked, orElse: () => d.episodes.first);
       PlayInfo? play;
       if (!ep.locked) play = await _repo.play(ep.id); // real signed url
-      final h = d.id.hashCode.abs();
       return FeedItem(
         drama: d,
         episode: FeedEpisode(
@@ -105,6 +156,9 @@ class MockApi {
           episodeNo: ep.episodeNo,
           durationSec: ep.durationSec,
           locked: ep.locked,
+          seasonNumber: play?.seasonNumber ?? ep.seasonNumber,
+          likeCount: ep.likeCount ?? 0,
+          commentCount: ep.commentCount ?? 0,
           free: ep.free,
           priceCoins: ep.priceCoins,
           coverUrl: ep.coverUrl ?? d.coverUrl,
@@ -114,7 +168,6 @@ class MockApi {
         ),
         liked: _liked.contains(ep.id),
         saved: _saved.contains(d.id),
-        likeCount: d.id == 'dr_mama' ? 2310 : 400 + h % 5000,
       );
     } catch (_) {
       return null;
@@ -189,6 +242,95 @@ class MockApi {
   }
 
   final Set<String> _reminderOff = {};
+
+  final Map<String, List<Comment>> _commentsByEp = {};
+  final List<DateTime> _postTimes = [];
+  static const _blocked = ['scam', 'http://', 'https://', 'www.'];
+
+  List<Comment> _seed(String epId) => _commentsByEp.putIfAbsent(epId, () {
+        final h = _hash(epId);
+        return [
+          // Contract examples.
+          Comment(
+              id: 'cm_7Hq2_$epId',
+              user: const CommentUser(
+                  id: 'u_tunde',
+                  nickname: 'Tunde_Ib',
+                  avatarUrl: 'https://naijareels-media.onrender.com/avatars/u_tunde.jpg'),
+              text: 'Mama Bisi no go kill me with laugh 😂',
+              likeCount: 4210,
+              liked: true,
+              createdAt: DateTime.parse('2026-10-29T19:12:00Z')),
+          Comment(
+              id: 'cm_8Kd9_$epId',
+              user: const CommentUser(id: 'u_amaka', nickname: 'Amaka from Enugu'),
+              text: 'Wetin Ngozi do her sef? Episode 3 abeg!',
+              likeCount: 312,
+              liked: false,
+              createdAt: DateTime.parse('2026-10-29T21:40:00Z')),
+          for (var i = 0; i < 6; i++)
+            Comment(
+                id: 'cm_m${i}_$epId',
+                user: CommentUser(id: 'u_m$i', nickname: const ['Chidi', 'Bisola', 'Musa', 'Efe', 'Ngozi', 'Kunle'][i]),
+                text: _comments[(h + i) % _comments.length],
+                likeCount: (h >> i) % 200,
+                liked: false,
+                createdAt: DateTime.parse('2026-10-28T12:00:00Z').add(Duration(hours: i * 3))),
+        ];
+      });
+
+  /// GET /api/v1/episodes/{id}/comments?sort=hot|new&page&size
+  Future<({List<Comment> items, int page, int size, bool hasMore})> comments(String episodeId,
+      {String sort = 'hot', int page = 1, int size = 20}) async {
+    final all = [..._seed(episodeId)];
+    if (sort == 'new') {
+      all.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    } else {
+      all.sort((a, b) {
+        final c = b.likeCount.compareTo(a.likeCount);
+        return c != 0 ? c : b.createdAt.compareTo(a.createdAt);
+      });
+    }
+    final from = ((page - 1) * size).clamp(0, all.length);
+    final to = (from + size).clamp(0, all.length);
+    return (items: all.sublist(from, to), page: page, size: size, hasMore: to < all.length);
+  }
+
+  /// POST /api/v1/episodes/{id}/comments {text}: 1–500 chars after trim; 42203 / 42901.
+  Future<Comment> postComment(String episodeId, String text, {DateTime? now}) async {
+    final t = text.trim();
+    ApiException invalid(String reason) =>
+        ApiException(kErrCommentInvalid, 'Comment text invalid', status: 422, data: {'reason': reason});
+    if (t.isEmpty) throw invalid('empty');
+    if (t.length > 500) throw invalid('too_long');
+    final lower = t.toLowerCase();
+    if (_blocked.any(lower.contains)) throw invalid('blocked_word');
+    final at = now ?? DateTime.now();
+    _postTimes.removeWhere((x) => at.difference(x) > const Duration(minutes: 1));
+    if (_postTimes.length >= 5) throw ApiException(kErrTooManyRequests, 'Too many requests', status: 429);
+    _postTimes.add(at);
+    final c = Comment(
+        id: 'cm_local_${at.microsecondsSinceEpoch}',
+        user: const CommentUser(id: 'u_me', nickname: 'You'),
+        text: t,
+        likeCount: 0,
+        liked: false,
+        createdAt: at.toUtc());
+    _seed(episodeId).insert(0, c);
+    return c;
+  }
+
+  /// POST|DELETE /api/v1/comments/{id}/like → CommentLike {commentId, liked, likeCount}.
+  Future<({String commentId, bool liked, int likeCount})> setCommentLiked(String commentId, bool on) async {
+    for (final list in _commentsByEp.values) {
+      final i = list.indexWhere((c) => c.id == commentId);
+      if (i < 0) continue;
+      final c = list[i];
+      if (c.liked != on) list[i] = c.copyWith(liked: on, likeCount: (c.likeCount + (on ? 1 : -1)).clamp(0, 1 << 30));
+      return (commentId: commentId, liked: on, likeCount: list[i].likeCount);
+    }
+    throw ApiException(40401, 'Not found', status: 404);
+  }
 
   /// POST|DELETE /api/v1/episodes/{id}/like
   Future<void> setLiked(String episodeId, bool liked) async => liked ? _liked.add(episodeId) : _liked.remove(episodeId);

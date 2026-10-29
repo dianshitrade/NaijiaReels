@@ -149,7 +149,9 @@ class EpisodeGrid extends StatelessWidget {
                   child: Text('${e.episodeNo}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w800, fontSize: 15, color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: Colors.white,
                           shadows: [Shadow(color: Colors.black, blurRadius: 3)])),
                 ),
                 if (e.locked)
@@ -158,13 +160,11 @@ class EpisodeGrid extends StatelessWidget {
                     right: 3,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                      decoration: BoxDecoration(
-                          color: const Color(0xB3000000), borderRadius: BorderRadius.circular(6)),
+                      decoration: BoxDecoration(color: const Color(0xB3000000), borderRadius: BorderRadius.circular(6)),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         const Icon(Icons.lock, size: 11, color: AppColors.gold),
                         if (e.priceCoins > 0)
-                          Text(' ${e.priceCoins}',
-                              style: const TextStyle(fontSize: 9, color: AppColors.gold)),
+                          Text(' ${e.priceCoins}', style: const TextStyle(fontSize: 9, color: AppColors.gold)),
                       ]),
                     ),
                   ),
@@ -174,5 +174,62 @@ class EpisodeGrid extends StatelessWidget {
         },
       );
     });
+  }
+}
+
+/// Episode picker grouped by `seasonNumber` (contract: episodeNo restarts per
+/// season). Single-season dramas render a plain [EpisodeGrid]. [onTap] gets
+/// the index into the flat [episodes] list.
+class SeasonedEpisodeGrid extends StatelessWidget {
+  const SeasonedEpisodeGrid({
+    super.key,
+    required this.episodes,
+    required this.dramaCoverUrl,
+    required this.dramaTitle,
+    required this.onTap,
+    this.currentIndex,
+  });
+  final List<EpisodeItem> episodes;
+  final String dramaCoverUrl;
+  final String dramaTitle;
+  final void Function(int index) onTap;
+  final int? currentIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    final seasons = {for (final e in episodes) e.seasonNumber}.toList()..sort();
+    if (seasons.length <= 1) {
+      return EpisodeGrid(
+          episodes: episodes,
+          dramaCoverUrl: dramaCoverUrl,
+          dramaTitle: dramaTitle,
+          currentIndex: currentIndex,
+          onTap: onTap);
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (final s in seasons)
+        ...() {
+          final idx = [
+            for (var k = 0; k < episodes.length; k++)
+              if (episodes[k].seasonNumber == s) k
+          ];
+          return [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text('Season $s',
+                  key: ValueKey('episodes-season-$s'),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            ),
+            EpisodeGrid(
+              key: ValueKey('episodes-grid-s$s'),
+              episodes: [for (final k in idx) episodes[k]],
+              dramaCoverUrl: dramaCoverUrl,
+              dramaTitle: dramaTitle,
+              currentIndex: currentIndex != null && idx.contains(currentIndex) ? idx.indexOf(currentIndex!) : null,
+              onTap: (j) => onTap(idx[j]),
+            ),
+          ];
+        }(),
+    ]);
   }
 }

@@ -44,7 +44,7 @@ class DramaDetailPage extends ConsumerWidget {
             Text(drama.description!),
           ],
           const SizedBox(height: 16),
-          EpisodeGrid(
+          SeasonedEpisodeGrid(
             episodes: drama.episodes,
             dramaCoverUrl: drama.coverUrl,
             dramaTitle: drama.title,
