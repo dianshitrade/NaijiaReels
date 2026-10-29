@@ -581,6 +581,11 @@ paths:
                           - string
                           - 'null'
                         description: Absolute per-episode cover image URL; null when absent.
+                      subtitles:
+                        type: array
+                        description: Subtitle tracks (WebVTT); empty array when none.
+                        items:
+                          $ref: '#/components/schemas/SubtitleTrack'
               example:
                 code: 0
                 message: ok
@@ -2005,6 +2010,22 @@ components:
             - string
             - 'null'
           description: Absolute per-episode cover image URL; null when absent.
+    SubtitleTrack:
+      type: object
+      required:
+        - lang
+        - label
+        - url
+      properties:
+        lang:
+          type: string
+          description: BCP-47 language code (e.g. en, pcm, yo, ig, ha, fr)
+        label:
+          type: string
+          description: Human-readable label (e.g. Naija Pidgin)
+        url:
+          type: string
+          description: Absolute WebVTT URL
     DramaDetail:
       allOf:
         - $ref: '#/components/schemas/Drama'

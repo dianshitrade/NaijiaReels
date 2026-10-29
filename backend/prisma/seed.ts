@@ -1,5 +1,5 @@
 /* Idempotent seed: 3 placeholder vertical dramas x 6 episodes (HLS under backend/media). */
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -28,6 +28,16 @@ const EPISODE_COVERS: Record<string, string> = {
   dr_mama_ep1: 'mama-in-law-wahala/ep1/cover.jpg',
   dr_mama_ep2: 'mama-in-law-wahala/ep2/cover.jpg',
 };
+// Subtitle tracks (BCP-47 lang, display label); files live at <slug>/ep<n>/subs/<lang>.vtt.
+const SUB_LANGS: [string, string][] = [
+  ['en', 'English'],
+  ['pcm', 'Naija Pidgin'],
+  ['yo', 'Yorùbá'],
+  ['ig', 'Igbo'],
+  ['ha', 'Hausa'],
+  ['fr', 'Français'],
+];
+const EPISODES_WITH_SUBS = new Set(['dr_mama_ep1', 'dr_mama_ep2']);
 const FREE_EPISODES = 2;
 // Real (non-placeholder) episode durations in seconds, keyed by `${dramaId}_ep${n}`.
 const REAL_DURATIONS: Record<string, number> = { dr_mama_ep1: 86, dr_mama_ep2: 88 };
@@ -59,6 +69,9 @@ async function main(): Promise<void> {
         durationSec: REAL_DURATIONS[`${d.id}_ep${n}`] ?? 10,
         hlsPath: `${d.slug}/ep${n}/master.m3u8`,
         coverPath: EPISODE_COVERS[`${d.id}_ep${n}`] ?? null,
+        subtitles: EPISODES_WITH_SUBS.has(`${d.id}_ep${n}`)
+          ? SUB_LANGS.map(([lang, label]) => ({ lang, label, path: `${d.slug}/ep${n}/subs/${lang}.vtt` }))
+          : Prisma.DbNull,
         free,
         priceCoins: free ? 0 : PRICE_COINS,
       };

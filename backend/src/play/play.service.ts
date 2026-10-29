@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { resolveCoverUrl } from '../content/content.service';
 import { signMediaUrl } from './media-signer';
+import { toSubtitles } from './subtitles';
 
 const PLAY_URL_TTL_SEC = 2 * 60 * 60;
 
@@ -39,6 +40,7 @@ export class PlayService {
     return {
       ...signMediaUrl(this.env.MEDIA_BASE_URL, e.hlsPath, this.env.MEDIA_SIGN_SECRET, PLAY_URL_TTL_SEC),
       coverUrl: resolveCoverUrl(e.coverPath, this.env.MEDIA_BASE_URL),
+      subtitles: toSubtitles(e.subtitles, this.env.MEDIA_BASE_URL),
     };
   }
 
