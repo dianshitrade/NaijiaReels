@@ -24,6 +24,29 @@ void main() {
     }
 
     await app.main();
+    // --- Home feed (5-tab shell) ---
+    final homeTap = find.byKey(const ValueKey('player-tap-layer'));
+    final framePoster = find.byKey(const ValueKey('first-frame-poster'));
+    for (var i = 0; i < 120 && (homeTap.evaluate().isEmpty || framePoster.evaluate().isNotEmpty); i++) {
+      await wait(1000);
+    }
+    debugPrint('HOME: playing=${homeTap.evaluate().isNotEmpty && framePoster.evaluate().isEmpty} '
+        'watchAll=${find.byKey(const ValueKey('feed-watch-full')).evaluate().isNotEmpty} '
+        'reward=${find.byKey(const ValueKey('reward-widget')).evaluate().isNotEmpty} '
+        'badge=${find.byKey(const ValueKey('feed-badge')).evaluate().isNotEmpty} '
+        'watching=${find.byKey(const ValueKey('feed-watching')).evaluate().isNotEmpty} '
+        'comment=${find.byKey(const ValueKey('feed-top-comment')).evaluate().isNotEmpty} '
+        'tabs=${['Home', 'Theater', 'Shop', 'Rewards', 'Me'].every((l) => find.text(l).evaluate().isNotEmpty)}');
+    await wait(2500);
+    await shot('hongguo_home');
+    await t.tap(find.byKey(const ValueKey('feed-tab-following')));
+    await wait(2500);
+    debugPrint('HOME: following empty=${find.byKey(const ValueKey('feed-empty')).evaluate().isNotEmpty}');
+    await shot('hongguo_home_following', settle: 1500);
+    await t.tap(find.byKey(const ValueKey('feed-tab-for_you')));
+    await wait(1000);
+    await t.tap(find.text('Theater').last);
+    await wait(500);
     for (var i = 0; i < 150 && find.text('Trending').evaluate().isEmpty; i++) {
       await wait(1000);
     }

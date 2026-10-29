@@ -1088,7 +1088,7 @@ class PlayerChrome extends StatelessWidget {
         right: 4,
         bottom: 128,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          _ActionButton(
+          PlayerRailButton(
             key: const ValueKey('player-save'),
             icon: Icons.star_rounded,
             color: saved ? AppColors.gold : Colors.white,
@@ -1096,14 +1096,14 @@ class PlayerChrome extends StatelessWidget {
             onTap: onSave,
           ),
           const SizedBox(height: 14),
-          _ActionButton(
+          PlayerRailButton(
             key: const ValueKey('player-comment'),
             icon: Icons.chat_bubble_rounded,
             label: _fmtCount(commentCount),
             onTap: onComment,
           ),
           const SizedBox(height: 14),
-          _ActionButton(
+          PlayerRailButton(
             key: const ValueKey('player-like'),
             icon: Icons.favorite,
             color: liked ? const Color(0xFFFE2C55) : Colors.white,
@@ -1111,7 +1111,7 @@ class PlayerChrome extends StatelessWidget {
             onTap: onLike,
           ),
           const SizedBox(height: 14),
-          _ActionButton(
+          PlayerRailButton(
             key: const ValueKey('player-share'),
             icon: Icons.reply_rounded,
             mirror: true,
@@ -1320,8 +1320,8 @@ class RewardCoinWidget extends StatelessWidget {
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
+class PlayerRailButton extends StatelessWidget {
+  const PlayerRailButton({
     super.key,
     required this.icon,
     required this.label,

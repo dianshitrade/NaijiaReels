@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -20,9 +21,13 @@ class Routes {
   static String play(String id, int index) => '/drama/$id/play?ep=$index';
 }
 
+/// Lets pages (e.g. the Home feed) pause video when another route covers them.
+final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
+
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: Routes.splash,
+    observers: [routeObserver],
     routes: [
       GoRoute(path: Routes.splash, builder: (_, __) => const SplashPage()),
       GoRoute(path: Routes.home, builder: (_, __) => const HomePage()),

@@ -17,6 +17,12 @@ void main() {
   testWidgets('player ux', (t) async {
     await app.main();
     await binding.convertFlutterSurfaceToImage();
+    for (var i = 0; i < 150 && find.text('Theater').evaluate().isEmpty; i++) {
+      await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 1000)));
+      await t.pump(const Duration(milliseconds: 50));
+    }
+    await t.tap(find.text('Theater').last); // catalog lives on the Theater tab
+    await t.pump(const Duration(milliseconds: 300));
     for (var i = 0; i < 150 && find.text('Trending').evaluate().isEmpty; i++) {
       await t.pump(const Duration(seconds: 1));
     }
@@ -50,11 +56,15 @@ void main() {
     await binding.takeScreenshot('player_liked');
 
     await t.tap(find.byKey(const ValueKey('player-comment')).first);
-    for (var i = 0; i < 6; i++) { await wait(t, 200); }
+    for (var i = 0; i < 6; i++) {
+      await wait(t, 200);
+    }
     expect(find.text('coming soon'), findsOneWidget);
     await binding.takeScreenshot('player_comments');
     Navigator.of(t.element(find.text('coming soon'))).pop();
-    for (var i = 0; i < 6; i++) { await wait(t, 200); }
+    for (var i = 0; i < 6; i++) {
+      await wait(t, 200);
+    }
 
     // seek drag
     final bar = find.byKey(const ValueKey('player-seekbar')).first;

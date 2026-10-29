@@ -21,12 +21,13 @@ Future<void> pumpUntil(WidgetTester t, Finder f, {int seconds = 150}) async {
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('guest -> home -> free play -> locked 403 -> coin unlock -> wallet 70',
-      (t) async {
+  testWidgets('guest -> home -> free play -> locked 403 -> coin unlock -> wallet 70', (t) async {
     await app.main();
     await binding.convertFlutterSurfaceToImage();
     await t.pump(const Duration(seconds: 4));
     await binding.takeScreenshot('01_splash');
+    await pumpUntil(t, find.text('Theater'));
+    await t.tap(find.text('Theater').last); // catalog lives on the Theater tab
     await pumpUntil(t, find.text('Trending'));
     debugPrint('SMOKE: home loaded (guest login ok)');
     await t.pump(const Duration(seconds: 5)); // let covers load for screenshot

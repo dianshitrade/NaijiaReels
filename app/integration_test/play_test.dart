@@ -12,6 +12,12 @@ void main() {
   testWidgets('Mama ep1 plays in EpisodeFeedPage (poster gone, no error)', (t) async {
     await app.main();
     await binding.convertFlutterSurfaceToImage();
+    for (var i = 0; i < 150 && find.text('Theater').evaluate().isEmpty; i++) {
+      await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 1000)));
+      await t.pump(const Duration(milliseconds: 50));
+    }
+    await t.tap(find.text('Theater').last); // catalog lives on the Theater tab
+    await t.pump(const Duration(milliseconds: 300));
     for (var i = 0; i < 150 && find.text('Trending').evaluate().isEmpty; i++) {
       await t.pump(const Duration(seconds: 1));
     }
@@ -38,8 +44,8 @@ void main() {
       }
     }
     if (err.evaluate().isNotEmpty) {
-      final texts = find.descendant(of: err, matching: find.byType(Text)).evaluate()
-          .map((e) => (e.widget as Text).data).toList();
+      final texts =
+          find.descendant(of: err, matching: find.byType(Text)).evaluate().map((e) => (e.widget as Text).data).toList();
       debugPrint('PLAY: ERROR shown: $texts');
     }
     // Let it run a few seconds so subtitles / progress move for the screenshot.

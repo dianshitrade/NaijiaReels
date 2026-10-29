@@ -168,7 +168,7 @@ void main() {
     expect(p.didExceedMaxLines, isFalse);
     expect(p.getMaxIntrinsicHeight(double.infinity), lessThan(60));
   });
-  testWidgets('02 discover', (t) => _shot(t, const HomePage(), '02_discover'));
+  testWidgets('02 discover', (t) => _shot(t, const HomePage(initialTab: 1), '02_discover'));
   testWidgets('03 player', (t) => _shot(
       t,
       const Scaffold(
@@ -181,9 +181,9 @@ void main() {
         ]),
       ),
       '03_player'));
-  testWidgets('04 rewards', (t) => _shot(t, const HomePage(initialTab: 1), '04_rewards'));
-  testWidgets('05 inbox', (t) => _shot(t, const HomePage(initialTab: 2), '05_inbox'));
-  testWidgets('06 profile', (t) => _shot(t, const HomePage(initialTab: 3), '06_profile'));
+  testWidgets('04 rewards', (t) => _shot(t, const HomePage(initialTab: 3), '04_rewards'));
+  testWidgets('05 inbox', (t) => _shot(t, const HomePage(initialTab: 4), '05_inbox'));
+  testWidgets('06 profile', (t) => _shot(t, const HomePage(initialTab: 4), '06_profile'));
   testWidgets('07 cover failed', (t) => _shot(
       t,
       Scaffold(
