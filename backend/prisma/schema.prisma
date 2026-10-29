@@ -51,16 +51,17 @@ model Tag {
 }
 
 model Drama {
-  id           String    @id @default(cuid())
+  id           String        @id @default(cuid())
   title        String
   description  String?
-  coverUrl     String?   @map("cover_url")
-  status       String    @default("draft")
-  episodeCount Int       @default(0) @map("episode_count")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  coverUrl     String?       @map("cover_url")
+  status       String        @default("draft")
+  episodeCount Int           @default(0) @map("episode_count")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
   episodes     Episode[]
   tags         Tag[]
+  seasons      DramaSeason[]
 
   @@map("dramas")
 }
@@ -163,4 +164,18 @@ model PaymentEvent {
 
   @@unique([provider, eventKey])
   @@map("payment_events")
+}
+
+model DramaSeason {
+  id        String   @id @default(cuid())
+  dramaId   String   @map("drama_id")
+  seasonNo  Int      @map("season_no")
+  title     String?
+  coverPath String?  @map("cover_path")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  drama     Drama    @relation(fields: [dramaId], references: [id], onDelete: Cascade)
+
+  @@unique([dramaId, seasonNo])
+  @@map("drama_seasons")
 }

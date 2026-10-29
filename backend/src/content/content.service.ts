@@ -5,7 +5,7 @@ import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 
-const dramaInclude = { tags: true } satisfies Prisma.DramaInclude;
+const dramaInclude = { tags: true, seasons: { orderBy: { seasonNo: 'asc' } } } satisfies Prisma.DramaInclude;
 type DramaRow = Prisma.DramaGetPayload<{ include: typeof dramaInclude }>;
 
 /** Resolve a stored cover path (`<slug>/cover.jpg`, `/media/<slug>/cover.jpg` or absolute URL) to `${MEDIA_BASE_URL}/<slug>/cover.jpg`. */
@@ -16,11 +16,27 @@ export function resolveCoverUrl(coverUrl: string | null, mediaBaseUrl: string): 
   return `${mediaBaseUrl.replace(/\/+$/, '')}/${rel}`;
 }
 
+type SeasonRow = { seasonNo: number; title: string | null; coverPath: string | null };
+
+/** Drama cover: season 1 cover when present, else the drama-level cover (fallback). */
+export function dramaCoverUrl(d: { coverUrl: string | null; seasons?: SeasonRow[] }, mediaBaseUrl = ''): string | null {
+  const s1 = d.seasons?.find((s) => s.seasonNo === 1 && s.coverPath);
+  const raw = s1?.coverPath ?? d.coverUrl;
+  return mediaBaseUrl ? resolveCoverUrl(raw, mediaBaseUrl) : raw;
+}
+
+/** Map season rows to API shape (sorted by seasonNo, absolute cover URLs, null when no cover). */
+export function toSeasons(rows: SeasonRow[] | undefined, mediaBaseUrl: string) {
+  return [...(rows ?? [])]
+    .sort((a, b) => a.seasonNo - b.seasonNo)
+    .map((s) => ({ seasonNo: s.seasonNo, title: s.title, coverUrl: resolveCoverUrl(s.coverPath, mediaBaseUrl) }));
+}
+
 export function toDrama(d: DramaRow, mediaBaseUrl = '') {
   return {
     id: d.id,
     title: d.title,
-    coverUrl: mediaBaseUrl ? resolveCoverUrl(d.coverUrl, mediaBaseUrl) : d.coverUrl,
+    coverUrl: dramaCoverUrl(d, mediaBaseUrl),
     tags: d.tags.map((t) => t.slug),
     episodeCount: d.episodeCount,
     description: d.description,
@@ -80,6 +96,7 @@ export class ContentService {
       : new Set<string>();
     return {
       ...this.drama(d),
+      seasons: toSeasons(d.seasons, this.env.MEDIA_BASE_URL),
       episodes: d.episodes.map((e) => ({
         id: e.id,
         episodeNo: e.episodeNo,

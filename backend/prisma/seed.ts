@@ -1,5 +1,6 @@
 /* Idempotent seed: 3 placeholder vertical dramas x 6 episodes (HLS under backend/media). */
 import { Prisma, PrismaClient } from '@prisma/client';
+import { SEASON_COVERS } from './season-covers';
 import { SUB_LANGS } from './subtitle-langs';
 
 const prisma = new PrismaClient();
@@ -73,6 +74,15 @@ async function main(): Promise<void> {
         update: ep,
       });
     }
+  }
+  // Season 1 exists for every drama (all current episodes are S1); coverPath only when the file was imported.
+  for (const d of DRAMAS) {
+    const cover = SEASON_COVERS.find((c) => c.dramaId === d.id && c.seasonNo === 1)?.coverPath ?? null;
+    await prisma.dramaSeason.upsert({
+      where: { dramaId_seasonNo: { dramaId: d.id, seasonNo: 1 } },
+      create: { dramaId: d.id, seasonNo: 1, title: 'Season 1', coverPath: cover },
+      update: { coverPath: cover },
+    });
   }
   console.log(`seeded ${DRAMAS.length} dramas x ${EPISODES} episodes`);
 }

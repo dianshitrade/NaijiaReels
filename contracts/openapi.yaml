@@ -1974,6 +1974,7 @@ components:
           type: string
         coverUrl:
           type: string
+          description: Season 1 cover when available, otherwise the drama-level cover.
         tags:
           type: array
           items:
@@ -2031,10 +2032,33 @@ components:
         - $ref: '#/components/schemas/Drama'
         - type: object
           properties:
+            seasons:
+              type: array
+              description: Optional. Seasons of the drama, ascending by seasonNo.
+              items:
+                $ref: '#/components/schemas/Season'
             episodes:
               type: array
               items:
                 $ref: '#/components/schemas/Episode'
+    Season:
+      type: object
+      required:
+        - seasonNo
+      properties:
+        seasonNo:
+          type: integer
+          minimum: 1
+        title:
+          type:
+            - string
+            - 'null'
+        coverUrl:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: Absolute season cover URL, null when the season has no cover yet.
     LockedInfo:
       type: object
       required:
