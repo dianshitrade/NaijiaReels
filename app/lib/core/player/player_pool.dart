@@ -158,6 +158,7 @@ class PooledPlayer {
 
   /// Picks the HLS track for [subtitleLang]; if the player exposes none,
   /// loads the matching `subtitles[].url` WebVTT via [SubtitleTrack.uri].
+  String? _hlsUsedFor; // language whose HLS rendition is active for this media
   Future<void> _applySubtitle() async {
     final lang = _subtitleLang;
     final tracks = player.state.tracks.subtitle;
@@ -169,7 +170,13 @@ class PooledPlayer {
     } else {
       final hls = pickSubtitleTrackForLang(tracks, lang);
       final ext = subtitles.where((s) => s.lang == lang).firstOrNull;
-      if (hls != null) {
+      // Switching HLS renditions mid-playback is unreliable in mpv/ffmpeg
+      // (the newly selected rendition never delivers cues; seen on CI for
+      // yo/fr/zh after en). So the HLS track is used for the language active
+      // when the stream starts; a later switch to another language loads that
+      // language's WebVTT directly when one exists.
+      final midSwitch = _hlsUsedFor != null && _hlsUsedFor != lang && ext != null;
+      if (hls != null && !midSwitch) {
         key = 'hls:${hls.id}';
         target = hls;
       } else if (ext != null && _tracksSeen && !_fallbackReady) {
@@ -180,7 +187,7 @@ class PooledPlayer {
           unawaited(_applySubtitle());
         });
         return;
-      } else if (ext != null && _fallbackReady) {
+      } else if (ext != null && (_fallbackReady || midSwitch)) {
         key = 'uri:${ext.url}';
         target = SubtitleTrack.uri(ext.url, title: ext.label, language: lang);
       } else {
@@ -189,6 +196,7 @@ class PooledPlayer {
     }
     if (_applied == key) return;
     _applied = key;
+    if (key.startsWith('hls:')) _hlsUsedFor ??= lang;
     debugPrint('[Subs] apply $key lang=$lang url=$url');
     try {
       await player.setSubtitleTrack(target);
@@ -204,6 +212,7 @@ class PooledPlayer {
   void _watchSubtitles() {
     _tracksSub?.cancel();
     _applied = null;
+    _hlsUsedFor = null;
     _tracksSub = player.stream.tracks.listen((tracks) async {
       _tracksSeen = true;
       debugPrint('[Subs] url=$url tracks.subtitle='
