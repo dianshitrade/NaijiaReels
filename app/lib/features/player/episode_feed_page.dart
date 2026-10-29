@@ -8,6 +8,7 @@ import '../../core/network/api_response.dart';
 import '../../core/player/player_pool.dart';
 import '../../data/models.dart';
 import '../../data/repository.dart';
+import '../../shared/widgets/episode_cover.dart';
 import '../../shared/widgets/wallet_chip.dart';
 
 class _EpState {
@@ -37,6 +38,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
   int _index = 0;
   bool _dialogOpen = false;
   String? _title;
+  String _dramaCover = '';
 
   @override
   void initState() {
@@ -51,6 +53,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     setState(() {
       _episodes = d.episodes;
       _title = d.title;
+      _dramaCover = d.coverUrl;
     });
     await _focus(_index);
   }
@@ -145,12 +148,51 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     super.dispose();
   }
 
+  void _showEpisodes() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${_title ?? ''} · ${_episodes.length} episodes',
+                  style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 12),
+              EpisodeGrid(
+                episodes: _episodes,
+                dramaCoverUrl: _dramaCover,
+                dramaTitle: _title ?? '',
+                currentIndex: _index,
+                onTap: (i) {
+                  Navigator.of(ctx).pop();
+                  _page.jumpToPage(i);
+                },
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
-      appBar: AppBar(backgroundColor: Colors.transparent, actions: const [WalletChip()]),
+      appBar: AppBar(backgroundColor: Colors.transparent, actions: [
+        if (_episodes.isNotEmpty)
+          IconButton(
+            key: const ValueKey('episodes-button'),
+            tooltip: 'Episodes',
+            icon: const Icon(Icons.grid_view_rounded),
+            onPressed: _showEpisodes,
+          ),
+        const WalletChip(),
+      ]),
       body: _episodes.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : PageView.builder(
@@ -206,6 +248,18 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     }
     return Stack(fit: StackFit.expand, children: [
       content,
+      // Cover poster until this page's player reports a video frame.
+      if (st?.lockedPrice == null && st?.error == null)
+        FirstFramePoster(
+          key: ValueKey('poster-${ep.id}'),
+          player: pooled?.player,
+          child: EpisodeCover(
+            episodeCoverUrl: ep.coverUrl,
+            dramaCoverUrl: _dramaCover,
+            title: _title ?? '',
+            showFallbackTitle: false,
+          ),
+        ),
       PlayerChrome(
         title: _title ?? '',
         episodeNo: ep.episodeNo,
@@ -239,6 +293,27 @@ const kSubtitleStyle = TextStyle(
 
 SubtitleViewConfiguration playerSubtitleConfig(double letterboxGap) =>
     const SubtitleViewConfiguration(visible: false);
+
+/// Shows [child] until [player] has a video size (first frame); null player
+/// (still resolving) keeps the poster.
+class FirstFramePoster extends StatelessWidget {
+  const FirstFramePoster({super.key, required this.player, required this.child});
+  final Player? player;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = player;
+    if (p == null) return IgnorePointer(child: child);
+    return StreamBuilder<int?>(
+      stream: p.stream.width,
+      initialData: p.state.width,
+      builder: (ctx, snap) => (snap.data ?? 0) > 0
+          ? const SizedBox.shrink()
+          : IgnorePointer(child: KeyedSubtree(key: const ValueKey('first-frame-poster'), child: child)),
+    );
+  }
+}
 
 class PlayerSubtitleOverlay extends StatelessWidget {
   const PlayerSubtitleOverlay({super.key, required this.player});

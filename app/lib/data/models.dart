@@ -41,6 +41,7 @@ class EpisodeItem {
     required this.locked,
     required this.priceCoins,
     this.durationSec = 0,
+    this.coverUrl,
   });
 
   final String id;
@@ -51,6 +52,9 @@ class EpisodeItem {
   final int priceCoins;
   final int durationSec;
 
+  /// Optional 9:16 episode cover; null when the API omits it.
+  final String? coverUrl;
+
   factory EpisodeItem.fromJson(Map<String, dynamic> j) => EpisodeItem(
         id: j['id'] as String,
         episodeNo: (j['episodeNo'] as num?)?.toInt() ?? 0,
@@ -59,6 +63,9 @@ class EpisodeItem {
         locked: j['locked'] as bool? ?? false,
         priceCoins: (j['priceCoins'] as num?)?.toInt() ?? 0,
         durationSec: (j['durationSec'] as num?)?.toInt() ?? 0,
+        coverUrl: j['coverUrl'] is String && (j['coverUrl'] as String).isNotEmpty
+            ? Env.resolve(j['coverUrl'] as String)
+            : null,
       );
 }
 

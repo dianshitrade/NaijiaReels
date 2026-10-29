@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/router.dart';
-import '../../app/theme.dart';
 import '../../data/repository.dart';
 import '../../shared/widgets/cover_image.dart';
+import '../../shared/widgets/episode_cover.dart';
 import '../../shared/widgets/wallet_chip.dart';
 
 class DramaDetailPage extends ConsumerWidget {
@@ -44,16 +44,12 @@ class DramaDetailPage extends ConsumerWidget {
             Text(drama.description!),
           ],
           const SizedBox(height: 16),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (var i = 0; i < drama.episodes.length; i++)
-              ActionChip(
-                avatar: drama.episodes[i].locked
-                    ? const Icon(Icons.lock, size: 16, color: AppColors.gold)
-                    : null,
-                label: Text('EP ${drama.episodes[i].episodeNo}'),
-                onPressed: () => context.push(Routes.play(drama.id, i)),
-              ),
-          ]),
+          EpisodeGrid(
+            episodes: drama.episodes,
+            dramaCoverUrl: drama.coverUrl,
+            dramaTitle: drama.title,
+            onTap: (i) => context.push(Routes.play(drama.id, i)),
+          ),
         ]),
       ),
     );
