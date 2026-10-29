@@ -22,6 +22,10 @@ tags:
     description: trade APIs
   - name: ops
     description: ops APIs
+  - name: rewards
+    description: rewards APIs
+  - name: me
+    description: me APIs
   - name: webhooks
     description: webhooks APIs
 security:
@@ -299,6 +303,11 @@ paths:
                         - romance
                       episodeCount: 60
                       description: A Lagos romance.
+                      heatCount: 1284000
+                      watchingCount: 3120
+                      badge: hot
+                      status: completed
+                      totalEpisodes: 60
                   sections:
                     - title: Trending
                       items:
@@ -309,6 +318,11 @@ paths:
                             - romance
                           episodeCount: 60
                           description: A Lagos romance.
+                          heatCount: 1284000
+                          watchingCount: 3120
+                          badge: hot
+                          status: completed
+                          totalEpisodes: 60
       description: getHome
   /api/v1/dramas:
     get:
@@ -323,6 +337,30 @@ paths:
           schema:
             type: string
           example: romance
+        - name: sort
+          in: query
+          description: new = latest release first; hot = heatCount desc. Default hot.
+          schema:
+            type: string
+            enum:
+              - new
+              - hot
+            default: hot
+          example: new
+        - name: genre
+          in: query
+          description: Genre slug (same vocabulary as tags).
+          schema:
+            type: string
+          example: comedy
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - completed
+              - ongoing
+          example: completed
         - name: page
           in: query
           schema:
@@ -384,6 +422,11 @@ paths:
                         - romance
                       episodeCount: 60
                       description: A Lagos romance.
+                      heatCount: 1284000
+                      watchingCount: 3120
+                      badge: hot
+                      status: completed
+                      totalEpisodes: 60
                   page: 1
                   size: 20
                   hasMore: false
@@ -431,6 +474,11 @@ paths:
                     - romance
                   episodeCount: 60
                   description: A Lagos romance.
+                  heatCount: 1284000
+                  watchingCount: 3120
+                  badge: hot
+                  status: completed
+                  totalEpisodes: 60
                   episodes:
                     - id: ep_1001
                       episodeNo: 1
@@ -446,6 +494,10 @@ paths:
                       free: false
                       locked: true
                       priceCoins: 30
+                  topComment:
+                    text: Mama Bisi no go kill me with laugh 😂
+                    likeCount: 4210
+                    userName: Tunde_Ib
         '404':
           description: Not found
           content:
@@ -532,6 +584,11 @@ paths:
                         - romance
                       episodeCount: 60
                       description: A Lagos romance.
+                      heatCount: 1284000
+                      watchingCount: 3120
+                      badge: hot
+                      status: completed
+                      totalEpisodes: 60
                   page: 1
                   size: 20
                   hasMore: false
@@ -780,6 +837,8 @@ paths:
       tags:
         - trade
       operationId: listProducts
+      deprecated: true
+      x-replaced-by: GET /api/v1/shop/packages
       summary: listProducts
       security: []
       responses:
@@ -813,7 +872,7 @@ paths:
                     coins: 100
                     bonusCoins: 10
                     playProductId: coins_100
-      description: listProducts
+      description: "Deprecated alias, kept until the 5-tab app ships; use GET /api/v1/shop/packages."
   /api/v1/orders:
     post:
       tags:
@@ -837,9 +896,15 @@ paths:
                   enum:
                     - play
                     - paystack
+                couponId:
+                  type:
+                    - string
+                    - 'null'
+                  description: Optional coupon from GET /coupons (status=available). Paystack only; ignored for play.
             example:
-              productId: p_coins_100
+              productId: pk_coins_1000
               channel: paystack
+              couponId: cp_n200_off
       responses:
         '200':
           description: OK
@@ -889,6 +954,16 @@ paths:
               example:
                 code: 40401
                 message: Not found
+                data: null
+        '422':
+          description: Coupon not applicable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 42202
+                message: Coupon not applicable
                 data: null
       description: createOrder
     get:
@@ -1201,6 +1276,8 @@ paths:
       tags:
         - ops
       operationId: getCheckin
+      deprecated: true
+      x-replaced-by: GET /api/v1/rewards/summary
       summary: getCheckin
       responses:
         '200':
@@ -1241,11 +1318,13 @@ paths:
                 code: 40101
                 message: Unauthorized
                 data: null
-      description: getCheckin
+      description: "Deprecated alias, kept until the 5-tab app ships; use GET /api/v1/rewards/summary."
     post:
       tags:
         - ops
       operationId: doCheckin
+      deprecated: true
+      x-replaced-by: POST /api/v1/rewards/{taskId}/claim with checkin:YYYY-MM-DD
       summary: doCheckin
       responses:
         '200':
@@ -1296,12 +1375,14 @@ paths:
                 code: 40902
                 message: Already checked in
                 data: null
-      description: doCheckin
+      description: "Deprecated alias, kept until the 5-tab app ships; use POST /api/v1/rewards/{taskId}/claim with checkin:YYYY-MM-DD."
   /api/v1/tasks:
     get:
       tags:
         - ops
       operationId: listTasks
+      deprecated: true
+      x-replaced-by: GET /api/v1/rewards/summary
       summary: listTasks
       responses:
         '200':
@@ -1343,12 +1424,14 @@ paths:
                 code: 40101
                 message: Unauthorized
                 data: null
-      description: listTasks
+      description: "Deprecated alias, kept until the 5-tab app ships; use GET /api/v1/rewards/summary."
   /api/v1/tasks/{id}/claim:
     post:
       tags:
         - ops
       operationId: claimTask
+      deprecated: true
+      x-replaced-by: POST /api/v1/rewards/{taskId}/claim
       summary: claimTask
       parameters:
         - name: id
@@ -1406,12 +1489,14 @@ paths:
                 code: 40903
                 message: Task not claimable
                 data: null
-      description: claimTask
+      description: "Deprecated alias, kept until the 5-tab app ships; use POST /api/v1/rewards/{taskId}/claim."
   /api/v1/library:
     get:
       tags:
         - ops
       operationId: listLibrary
+      deprecated: true
+      x-replaced-by: GET /api/v1/me/saved
       summary: listLibrary
       parameters:
         - name: page
@@ -1475,6 +1560,11 @@ paths:
                         - romance
                       episodeCount: 60
                       description: A Lagos romance.
+                      heatCount: 1284000
+                      watchingCount: 3120
+                      badge: hot
+                      status: completed
+                      totalEpisodes: 60
                   page: 1
                   size: 20
                   hasMore: false
@@ -1488,7 +1578,7 @@ paths:
                 code: 40101
                 message: Unauthorized
                 data: null
-      description: listLibrary
+      description: "Deprecated alias, kept until the 5-tab app ships; use GET /api/v1/me/saved."
     post:
       tags:
         - ops
@@ -1645,6 +1735,8 @@ paths:
       tags:
         - ops
       operationId: listHistory
+      deprecated: true
+      x-replaced-by: GET /api/v1/me/history
       summary: listHistory
       parameters:
         - name: page
@@ -1719,7 +1811,7 @@ paths:
                 code: 40101
                 message: Unauthorized
                 data: null
-      description: listHistory
+      description: "Deprecated alias, kept until the 5-tab app ships; use GET /api/v1/me/history."
   /api/v1/config:
     get:
       tags:
@@ -1921,6 +2013,1239 @@ paths:
                 message: Invalid signature
                 data: null
       description: webhookPlay
+  /api/v1/feed:
+    get:
+      tags:
+      - content
+      operationId: getFeed
+      summary: getFeed
+      description: 'Vertical swipe feed. Each item = drama summary + one episode. Decision: unlocked episodes embed a short-lived signed hlsUrl (10 min) so the player can preload the next items without an extra /play round trip; locked episodes always have hlsUrl=null and must go through unlock. tag=following requires login (guests get an empty list).'
+      security: []
+      parameters:
+      - name: tag
+        in: query
+        schema:
+          type: string
+          enum:
+          - for_you
+          - following
+          - nollywood
+          - comedy
+          - romance
+          default: for_you
+        example: for_you
+        description: Feed channel
+      - &id001
+        name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        example: 1
+      - &id002
+        name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                    - items
+                    - page
+                    - size
+                    - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/FeedItem'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                  - drama: &id008
+                      id: dr_mama
+                      title: Mama-in-Law Wahala
+                      coverUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/s1/cover.jpg
+                      tags: &id003
+                      - comedy
+                      - family
+                      episodeCount: 2
+                      description: A Lagos bride versus her Ibadan mother-in-law.
+                      heatCount: 1284000
+                      watchingCount: 3120
+                      badge: hot
+                      status: ongoing
+                      totalEpisodes: 60
+                    episode:
+                      id: dr_mama_ep1
+                      episodeNo: 1
+                      coverUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/cover.jpg
+                      durationSec: 86
+                      free: true
+                      locked: false
+                      priceCoins: 0
+                      hlsUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/master.m3u8?exp=1793325600&sig=3f9a1c
+                      hlsUrlExpiresAt: '2026-10-30T10:10:00Z'
+                      subtitles:
+                      - lang: en
+                        label: English
+                        url: https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/subs/en.vtt
+                      - lang: pcm
+                        label: Naija Pidgin
+                        url: https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/subs/pcm.vtt
+                    liked: false
+                    saved: true
+                    likeCount: 2310
+                  - drama: &id010
+                      id: dr_prince
+                      title: The Prince's Secret Bride
+                      coverUrl: https://naijareels-media.onrender.com/princes-secret-bride/s1/cover.jpg
+                      tags: &id004
+                      - romance
+                      - royalty
+                      episodeCount: 40
+                      description: A Benin prince hides his crown to marry for love.
+                      heatCount: 856000
+                      watchingCount: 1450
+                      badge: new
+                      status: completed
+                      totalEpisodes: 40
+                    episode:
+                      id: dr_prince_ep5
+                      episodeNo: 5
+                      coverUrl: https://naijareels-media.onrender.com/princes-secret-bride/ep5/cover.jpg
+                      durationSec: 92
+                      free: false
+                      locked: true
+                      priceCoins: 30
+                      hlsUrl: null
+                      hlsUrlExpiresAt: null
+                      subtitles: []
+                    liked: false
+                    saved: false
+                    likeCount: 980
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '400': &id005
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40001
+                message: Validation failed
+                data: null
+  /api/v1/charts:
+    get:
+      tags:
+      - content
+      operationId: getCharts
+      summary: getCharts
+      description: Theater ranking lists. Ranked by heat (hot), 7-day heat growth (trending), release date (new) or heat among completed dramas (completed). Max 50 items.
+      security: []
+      parameters:
+      - name: type
+        in: query
+        schema:
+          type: string
+          enum:
+          - hot
+          - trending
+          - new
+          - completed
+        example: hot
+        description: Chart type
+        required: true
+      - *id001
+      - *id002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                    - items
+                    - page
+                    - size
+                    - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ChartItem'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                  - id: dr_mama
+                    title: Mama-in-Law Wahala
+                    coverUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/s1/cover.jpg
+                    tags: *id003
+                    episodeCount: 2
+                    description: A Lagos bride versus her Ibadan mother-in-law.
+                    heatCount: 1284000
+                    watchingCount: 3120
+                    badge: hot
+                    status: ongoing
+                    totalEpisodes: 60
+                    rank: 1
+                    rankChange: 2
+                  - id: dr_prince
+                    title: The Prince's Secret Bride
+                    coverUrl: https://naijareels-media.onrender.com/princes-secret-bride/s1/cover.jpg
+                    tags: *id004
+                    episodeCount: 40
+                    description: A Benin prince hides his crown to marry for love.
+                    heatCount: 856000
+                    watchingCount: 1450
+                    badge: new
+                    status: completed
+                    totalEpisodes: 40
+                    rank: 2
+                    rankChange: null
+                  - id: dr_lagos
+                    title: Lagos Hustle
+                    coverUrl: https://naijareels-media.onrender.com/lagos-hustle/s1/cover.jpg
+                    tags:
+                    - nollywood
+                    - drama
+                    episodeCount: 12
+                    description: Three friends chase the dream on Lagos Island.
+                    heatCount: 402000
+                    watchingCount: 610
+                    badge: null
+                    status: ongoing
+                    totalEpisodes: 50
+                    rank: 3
+                    rankChange: -1
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '400': *id005
+  /api/v1/dramas/coming-soon:
+    get:
+      tags:
+      - content
+      operationId: listComingSoon
+      summary: listComingSoon
+      description: Upcoming dramas ordered by releaseAt asc. reminderSet is false for guests.
+      security: []
+      parameters: &id009
+      - *id001
+      - *id002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                    - items
+                    - page
+                    - size
+                    - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ComingSoonDrama'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                  - &id011
+                    id: dr_owambe
+                    title: Owambe Queens
+                    coverUrl: https://naijareels-media.onrender.com/owambe-queens/s1/cover.jpg
+                    tags:
+                    - comedy
+                    - romance
+                    episodeCount: 0
+                    description: Aso-ebi rivalry at the biggest party in Surulere.
+                    heatCount: 0
+                    watchingCount: 0
+                    badge: new
+                    status: ongoing
+                    totalEpisodes: 45
+                    releaseAt: '2026-11-14T18:00:00Z'
+                    reminderSet: true
+                    reminderCount: 8120
+                  page: 1
+                  size: 20
+                  hasMore: false
+  /api/v1/dramas/{id}/reminder:
+    post:
+      tags:
+      - content
+      operationId: setReminder
+      summary: setReminder
+      description: Set a release reminder (push notification at releaseAt). Idempotent.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: dr_owambe
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Reminder'
+              example:
+                code: 0
+                message: ok
+                data:
+                  dramaId: dr_owambe
+                  reminderSet: true
+                  releaseAt: '2026-11-14T18:00:00Z'
+        '401': &id006
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40101
+                message: Unauthorized
+                data: null
+        '404': &id007
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40401
+                message: Not found
+                data: null
+        '409':
+          description: Drama already released
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40905
+                message: Drama already released
+                data: null
+    delete:
+      tags:
+      - content
+      operationId: removeReminder
+      summary: removeReminder
+      description: Cancel a release reminder. Idempotent.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: dr_owambe
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Reminder'
+              example:
+                code: 0
+                message: ok
+                data:
+                  dramaId: dr_owambe
+                  reminderSet: false
+                  releaseAt: '2026-11-14T18:00:00Z'
+        '401': *id006
+        '404': *id007
+  /api/v1/episodes/{id}/like:
+    post:
+      tags:
+      - play
+      operationId: likeEpisode
+      summary: likeEpisode
+      description: Like an episode. Idempotent.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: dr_mama_ep1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/EpisodeLike'
+              example:
+                code: 0
+                message: ok
+                data:
+                  episodeId: dr_mama_ep1
+                  liked: true
+                  likeCount: 2311
+        '401': *id006
+        '404': *id007
+    delete:
+      tags:
+      - play
+      operationId: unlikeEpisode
+      summary: unlikeEpisode
+      description: Remove like. Idempotent.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: dr_mama_ep1
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/EpisodeLike'
+              example:
+                code: 0
+                message: ok
+                data:
+                  episodeId: dr_mama_ep1
+                  liked: false
+                  likeCount: 2310
+        '401': *id006
+        '404': *id007
+  /api/v1/shop/packages:
+    get:
+      tags:
+      - trade
+      operationId: listShopPackages
+      summary: listShopPackages
+      description: 'Shop tab packages (coins + VIP). Replaces GET /products. tag=first_recharge is only returned to users with no paid order. Buy with POST /orders {productId: package id}.'
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                    - items
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ShopPackage'
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                  - id: pk_coins_first
+                    type: coins
+                    title: First Recharge Special
+                    coins: 300
+                    bonusCoins: 300
+                    amountKobo: 50000
+                    originalAmountKobo: 100000
+                    tag: first_recharge
+                    endsAt: null
+                    vipDays: null
+                    playProductId: coins_300_first
+                  - id: pk_coins_1000
+                    type: coins
+                    title: 1,000 Coins
+                    coins: 1000
+                    bonusCoins: 150
+                    amountKobo: 150000
+                    originalAmountKobo: null
+                    tag: null
+                    endsAt: null
+                    vipDays: null
+                    playProductId: coins_1000
+                  - id: pk_vip_week
+                    type: vip
+                    title: VIP Weekly
+                    coins: 0
+                    bonusCoins: 0
+                    amountKobo: 120000
+                    originalAmountKobo: 200000
+                    tag: limited
+                    endsAt: '2026-11-01T22:59:59Z'
+                    vipDays: 7
+                    playProductId: vip_week
+  /api/v1/coupons:
+    get:
+      tags:
+      - trade
+      operationId: listCoupons
+      summary: listCoupons
+      description: User coupons. Apply with POST /orders couponId.
+      parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - available
+          - used
+          - expired
+          default: available
+        example: available
+        description: Filter
+      - *id001
+      - *id002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                    - items
+                    - page
+                    - size
+                    - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Coupon'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                  - id: cp_n200_off
+                    title: ₦200 off your next top-up
+                    type: amount_off
+                    amountOffKobo: 20000
+                    bonusCoins: null
+                    minAmountKobo: 100000
+                    packageIds: []
+                    status: available
+                    expiresAt: '2026-11-15T22:59:59Z'
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '401': *id006
+  /api/v1/rewards/summary:
+    get:
+      tags:
+      - rewards
+      operationId: getRewardsSummary
+      summary: getRewardsSummary
+      description: 'Everything the Rewards tab renders in one call. Every claimable entry carries a taskId for POST /rewards/{taskId}/claim (check-in included: checkin7Day.days[].taskId).'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/RewardsSummary'
+              example:
+                code: 0
+                message: ok
+                data:
+                  balanceCoins: 245
+                  cashKobo: 0
+                  newbie7Day:
+                    days:
+                    - day: 1
+                      rewardCoins: 50
+                      status: claimed
+                      taskId: null
+                    - day: 2
+                      rewardCoins: 30
+                      status: claimed
+                      taskId: null
+                    - day: 3
+                      rewardCoins: 30
+                      status: claimable
+                      taskId: newbie:3
+                    - day: 4
+                      rewardCoins: 40
+                      status: locked
+                      taskId: null
+                    - day: 5
+                      rewardCoins: 40
+                      status: locked
+                      taskId: null
+                    - day: 6
+                      rewardCoins: 50
+                      status: locked
+                      taskId: null
+                    - day: 7
+                      rewardCoins: 100
+                      status: locked
+                      taskId: null
+                  checkin7Day:
+                    streak: 3
+                    todayChecked: false
+                    days:
+                    - day: 1
+                      rewardCoins: 10
+                      status: claimed
+                      taskId: null
+                    - day: 2
+                      rewardCoins: 10
+                      status: claimed
+                      taskId: null
+                    - day: 3
+                      rewardCoins: 15
+                      status: claimed
+                      taskId: null
+                    - day: 4
+                      rewardCoins: 15
+                      status: claimable
+                      taskId: checkin:2026-10-30
+                    - day: 5
+                      rewardCoins: 20
+                      status: locked
+                      taskId: null
+                    - day: 6
+                      rewardCoins: 20
+                      status: locked
+                      taskId: null
+                    - day: 7
+                      rewardCoins: 50
+                      status: locked
+                      taskId: null
+                  bingeStreak:
+                    taskId: binge:2026-10-30
+                    title: Watch 10 episodes today
+                    rewardCoins: 30
+                    progress: 6
+                    target: 10
+                    status: in_progress
+                    dramaId: null
+                  dramaCompletion:
+                  - taskId: complete:dr_prince
+                    title: Finish The Prince's Secret Bride
+                    rewardCoins: 100
+                    progress: 40
+                    target: 40
+                    status: claimable
+                    dramaId: dr_prince
+                  chests:
+                  - id: ch_1
+                    taskId: chest:ch_1
+                    status: unlocking
+                    unlockAt: '2026-10-30T06:00:00Z'
+                    progress: null
+                    target: null
+                    rewardCoinsMin: 5
+                    rewardCoinsMax: 50
+                  - id: ch_2
+                    taskId: chest:ch_2
+                    status: locked
+                    unlockAt: null
+                    progress: 12
+                    target: 30
+                    rewardCoinsMin: 10
+                    rewardCoinsMax: 100
+        '401': *id006
+  /api/v1/rewards/{taskId}/claim:
+    post:
+      tags:
+      - rewards
+      operationId: claimReward
+      summary: claimReward
+      description: 'Claim a reward. taskId formats: checkin:YYYY-MM-DD, newbie:N, binge:YYYY-MM-DD, complete:<dramaId>, chest:<chestId>. Idempotent per taskId: a second call returns 40903.'
+      parameters:
+      - name: taskId
+        in: path
+        required: true
+        schema:
+          type: string
+        example: checkin:2026-10-30
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/RewardClaim'
+              example:
+                code: 0
+                message: ok
+                data:
+                  taskId: checkin:2026-10-30
+                  rewardCoins: 15
+                  balanceCoins: 260
+        '401': *id006
+        '404': *id007
+        '409':
+          description: Task not claimable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40903
+                message: Task not claimable
+                data: null
+  /api/v1/me:
+    get:
+      tags:
+      - me
+      operationId: getMe
+      summary: getMe
+      description: Current user profile and counters.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Me'
+              example:
+                code: 0
+                message: ok
+                data:
+                  id: u_8f2k1
+                  nickname: Chioma O.
+                  avatarUrl: https://naijareels-media.onrender.com/avatars/u_8f2k1.jpg
+                  guest: false
+                  followingCount: 12
+                  followersCount: 3
+                  likesCount: 58
+                  balanceCoins: 245
+                  vipUntil: null
+        '401': *id006
+    patch:
+      tags:
+      - me
+      operationId: updateMe
+      summary: updateMe
+      description: Update profile. avatarUrl must come from POST /me/avatar-upload-url (our media host) or be null to reset.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                nickname:
+                  type: string
+                  minLength: 2
+                  maxLength: 24
+                avatarUrl:
+                  type:
+                  - string
+                  - 'null'
+            example:
+              nickname: Chioma Okafor
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Me'
+              example:
+                code: 0
+                message: ok
+                data:
+                  id: u_8f2k1
+                  nickname: Chioma Okafor
+                  avatarUrl: https://naijareels-media.onrender.com/avatars/u_8f2k1.jpg
+                  guest: false
+                  followingCount: 12
+                  followersCount: 3
+                  likesCount: 58
+                  balanceCoins: 245
+                  vipUntil: null
+        '400': *id005
+        '401': *id006
+  /api/v1/me/avatar-upload-url:
+    post:
+      tags:
+      - me
+      operationId: createAvatarUploadUrl
+      summary: createAvatarUploadUrl
+      description: Get a presigned PUT URL (jpeg/png/webp, max 2 MB, expires in 5 min). P2.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - contentType
+              properties:
+                contentType:
+                  type: string
+                  enum:
+                  - image/jpeg
+                  - image/png
+                  - image/webp
+            example:
+              contentType: image/jpeg
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/AvatarUpload'
+              example:
+                code: 0
+                message: ok
+                data:
+                  uploadUrl: https://uploads.naijareels.com/avatars/u_8f2k1/a1b2.jpg?X-Amz-Signature=9c1d
+                  avatarUrl: https://naijareels-media.onrender.com/avatars/u_8f2k1/a1b2.jpg
+                  expiresAt: '2026-10-30T10:05:00Z'
+                  maxBytes: 2097152
+        '400':
+          description: Unsupported content type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: 40003
+                message: Unsupported content type
+                data: null
+        '401': *id006
+  /api/v1/me/history:
+    get:
+      tags:
+      - me
+      operationId: listMeHistory
+      summary: listMeHistory
+      description: Watch history, one row per drama, newest first. Replaces GET /history (progress is still saved with POST /history).
+      parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - all
+          - finished
+          - in_progress
+          default: all
+        example: all
+        description: Filter
+      - *id001
+      - *id002
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                    - items
+                    - page
+                    - size
+                    - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MeHistoryItem'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                  - drama: *id008
+                    lastEpisodeId: dr_mama_ep2
+                    lastEpisodeNo: 2
+                    totalEpisodes: 60
+                    progressSec: 41
+                    finished: false
+                    updatedAt: '2026-10-29T20:15:00Z'
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '401': *id006
+  /api/v1/me/saved:
+    get:
+      tags:
+      - me
+      operationId: listMeSaved
+      summary: listMeSaved
+      description: Saved dramas (same data as GET /library, which it replaces). Add/remove still via POST/DELETE /library.
+      parameters: *id009
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                    - items
+                    - page
+                    - size
+                    - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SavedDrama'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                  - drama: *id010
+                    savedAt: '2026-10-28T19:40:00Z'
+                    lastEpisodeNo: 12
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '401': *id006
+  /api/v1/me/liked:
+    get:
+      tags:
+      - me
+      operationId: listMeLiked
+      summary: listMeLiked
+      description: Liked episodes, newest first.
+      parameters: *id009
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                    - items
+                    - page
+                    - size
+                    - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LikedEpisode'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                  - drama: *id008
+                    episode:
+                      id: dr_mama_ep1
+                      episodeNo: 1
+                      coverUrl: https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/cover.jpg
+                    likedAt: '2026-10-29T21:02:00Z'
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '401': *id006
+  /api/v1/me/reminders:
+    get:
+      tags:
+      - me
+      operationId: listMeReminders
+      summary: listMeReminders
+      description: Dramas the user set a reminder for, by releaseAt asc. Released dramas drop out 7 days after release.
+      parameters: *id009
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - message
+                - data
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                    - items
+                    - page
+                    - size
+                    - hasMore
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ComingSoonDrama'
+                      page:
+                        type: integer
+                      size:
+                        type: integer
+                      hasMore:
+                        type: boolean
+              example:
+                code: 0
+                message: ok
+                data:
+                  items:
+                  - *id011
+                  page: 1
+                  size: 20
+                  hasMore: false
+        '401': *id006
 components:
   securitySchemes:
     bearerAuth:
@@ -1981,8 +3306,32 @@ components:
             type: string
         episodeCount:
           type: integer
+          description: Episodes released so far.
         description:
           type: string
+        heatCount:
+          type: integer
+          description: Popularity score (plays + likes + saves, weighted); render as 1.2M.
+        watchingCount:
+          type: integer
+          description: Users who played an episode in the last 10 minutes.
+        badge:
+          type:
+            - string
+            - 'null'
+          enum:
+            - hot
+            - new
+            - null
+          description: Corner badge. new = first episode released < 14 days ago; hot = top 10 by heat.
+        status:
+          type: string
+          enum:
+            - completed
+            - ongoing
+        totalEpisodes:
+          type: integer
+          description: Planned total episodes (== episodeCount when completed). Drives "Ep 2 / 60".
     Episode:
       type: object
       required:
@@ -2041,6 +3390,8 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Episode'
+            topComment:
+              $ref: '#/components/schemas/TopComment'
     Season:
       type: object
       required:
@@ -2134,6 +3485,13 @@ components:
           type:
             - string
             - 'null'
+        couponId:
+          type:
+            - string
+            - 'null'
+        discountKobo:
+          type: integer
+          description: Coupon discount applied; amountKobo is the amount actually charged.
     Transaction:
       type: object
       properties:
@@ -2203,3 +3561,518 @@ components:
         updatedAt:
           type: string
           format: date-time
+    TopComment:
+      type:
+      - object
+      - 'null'
+      description: Highest-liked comment on the drama; null when none.
+      required:
+      - text
+      - likeCount
+      properties:
+        text:
+          type: string
+        likeCount:
+          type: integer
+          minimum: 0
+        userName:
+          type:
+          - string
+          - 'null'
+          description: Display name; null for anonymous/guest authors.
+    FeedEpisode:
+      type: object
+      required:
+      - id
+      - episodeNo
+      - durationSec
+      - locked
+      - free
+      - priceCoins
+      - hlsUrl
+      properties:
+        id:
+          type: string
+        episodeNo:
+          type: integer
+        coverUrl:
+          type:
+          - string
+          - 'null'
+        durationSec:
+          type: integer
+        free:
+          type: boolean
+        locked:
+          type: boolean
+        priceCoins:
+          type: integer
+        hlsUrl:
+          type:
+          - string
+          - 'null'
+          description: Signed master.m3u8 URL, present ONLY when locked=false. Short expiry (10 min, see hlsUrlExpiresAt). When null or expired, call GET /episodes/{id}/play (or unlock).
+        hlsUrlExpiresAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        subtitles:
+          type: array
+          description: Same tracks as /episodes/{id}/play; empty when locked.
+          items:
+            $ref: '#/components/schemas/SubtitleTrack'
+    FeedItem:
+      type: object
+      required:
+      - drama
+      - episode
+      properties:
+        drama:
+          $ref: '#/components/schemas/Drama'
+        episode:
+          $ref: '#/components/schemas/FeedEpisode'
+        liked:
+          type: boolean
+          description: Current user liked this episode (false for guests).
+        saved:
+          type: boolean
+          description: Drama is in the user's saved list.
+        likeCount:
+          type: integer
+    ChartItem:
+      allOf:
+      - $ref: '#/components/schemas/Drama'
+      - type: object
+        required:
+        - rank
+        properties:
+          rank:
+            type: integer
+            minimum: 1
+          rankChange:
+            type:
+            - integer
+            - 'null'
+            description: Positive = moved up vs previous period; null = new entry.
+    ComingSoonDrama:
+      allOf:
+      - $ref: '#/components/schemas/Drama'
+      - type: object
+        required:
+        - releaseAt
+        - reminderSet
+        properties:
+          releaseAt:
+            type: string
+            format: date-time
+          reminderSet:
+            type: boolean
+            description: false for guests.
+          reminderCount:
+            type: integer
+            description: Users who set a reminder.
+    Reminder:
+      type: object
+      required:
+      - dramaId
+      - reminderSet
+      properties:
+        dramaId:
+          type: string
+        reminderSet:
+          type: boolean
+        releaseAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+    ShopPackage:
+      type: object
+      required:
+      - id
+      - type
+      - title
+      - amountKobo
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum:
+          - coins
+          - vip
+        title:
+          type: string
+        coins:
+          type: integer
+          description: Base coins credited (coins packages; 0 for vip). Name kept for frontend/Product compatibility.
+        bonusCoins:
+          type: integer
+        amountKobo:
+          type: integer
+        originalAmountKobo:
+          type:
+          - integer
+          - 'null'
+          description: Strike-through price; null when not discounted.
+        tag:
+          type:
+          - string
+          - 'null'
+          enum:
+          - first_recharge
+          - limited
+          - null
+        endsAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: Offer end (limited); null = no countdown.
+        vipDays:
+          type:
+          - integer
+          - 'null'
+          description: VIP duration; null for coins packages.
+        playProductId:
+          type:
+          - string
+          - 'null'
+          description: Google Play product id for channel=play.
+    Coupon:
+      type: object
+      required:
+      - id
+      - title
+      - type
+      - status
+      - expiresAt
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+          enum:
+          - amount_off
+          - bonus_coins
+        amountOffKobo:
+          type:
+          - integer
+          - 'null'
+        bonusCoins:
+          type:
+          - integer
+          - 'null'
+        minAmountKobo:
+          type: integer
+          description: Minimum package price to apply.
+        packageIds:
+          type: array
+          items:
+            type: string
+          description: Applicable packages; empty = all.
+        status:
+          type: string
+          enum:
+          - available
+          - used
+          - expired
+        expiresAt:
+          type: string
+          format: date-time
+    RewardDay:
+      type: object
+      required:
+      - day
+      - rewardCoins
+      - status
+      properties:
+        day:
+          type: integer
+          minimum: 1
+          maximum: 7
+        rewardCoins:
+          type: integer
+        status:
+          type: string
+          enum:
+          - locked
+          - claimable
+          - claimed
+          - missed
+        taskId:
+          type:
+          - string
+          - 'null'
+          description: Pass to POST /rewards/{taskId}/claim when claimable.
+    RewardTask:
+      type: object
+      required:
+      - taskId
+      - title
+      - rewardCoins
+      - progress
+      - target
+      - status
+      properties:
+        taskId:
+          type: string
+        title:
+          type: string
+        rewardCoins:
+          type: integer
+        progress:
+          type: integer
+        target:
+          type: integer
+        status:
+          type: string
+          enum:
+          - in_progress
+          - claimable
+          - claimed
+        dramaId:
+          type:
+          - string
+          - 'null'
+          description: Set for drama completion tasks.
+    Chest:
+      type: object
+      required:
+      - id
+      - taskId
+      - status
+      properties:
+        id:
+          type: string
+        taskId:
+          type: string
+        status:
+          type: string
+          enum:
+          - locked
+          - unlocking
+          - claimable
+          - claimed
+        unlockAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          description: 'Time-based chest: claimable after this.'
+        progress:
+          type:
+          - integer
+          - 'null'
+        target:
+          type:
+          - integer
+          - 'null'
+          description: Watch-based chest (minutes).
+        rewardCoinsMin:
+          type: integer
+        rewardCoinsMax:
+          type: integer
+    RewardsSummary:
+      type: object
+      required:
+      - balanceCoins
+      - cashKobo
+      - newbie7Day
+      - checkin7Day
+      - bingeStreak
+      - dramaCompletion
+      - chests
+      properties:
+        balanceCoins:
+          type: integer
+        cashKobo:
+          type: integer
+          description: 'DISPLAY-ONLY in MVP: not withdrawable, no cash-out endpoint. Real-cash rewards would need KYC/CBN compliance and a Google Play policy review; always 0 until then.'
+        newbie7Day:
+          type:
+          - object
+          - 'null'
+          description: null once completed or after 14 days from signup.
+          required:
+          - days
+          properties:
+            days:
+              type: array
+              items:
+                $ref: '#/components/schemas/RewardDay'
+        checkin7Day:
+          type: object
+          required:
+          - streak
+          - todayChecked
+          - days
+          properties:
+            streak:
+              type: integer
+            todayChecked:
+              type: boolean
+            days:
+              type: array
+              items:
+                $ref: '#/components/schemas/RewardDay'
+        bingeStreak:
+          $ref: '#/components/schemas/RewardTask'
+        dramaCompletion:
+          type: array
+          items:
+            $ref: '#/components/schemas/RewardTask'
+        chests:
+          type: array
+          items:
+            $ref: '#/components/schemas/Chest'
+    RewardClaim:
+      type: object
+      required:
+      - taskId
+      - rewardCoins
+      - balanceCoins
+      properties:
+        taskId:
+          type: string
+        rewardCoins:
+          type: integer
+        balanceCoins:
+          type: integer
+    Me:
+      type: object
+      required:
+      - id
+      - nickname
+      - guest
+      - followingCount
+      - followersCount
+      - likesCount
+      properties:
+        id:
+          type: string
+        nickname:
+          type: string
+        avatarUrl:
+          type:
+          - string
+          - 'null'
+        guest:
+          type: boolean
+        followingCount:
+          type: integer
+        followersCount:
+          type: integer
+        likesCount:
+          type: integer
+          description: Number of episodes the user has liked.
+        balanceCoins:
+          type: integer
+        vipUntil:
+          type:
+          - string
+          - 'null'
+          format: date-time
+    MeHistoryItem:
+      type: object
+      required:
+      - drama
+      - lastEpisodeId
+      - lastEpisodeNo
+      - totalEpisodes
+      - progressSec
+      - finished
+      - updatedAt
+      properties:
+        drama:
+          $ref: '#/components/schemas/Drama'
+        lastEpisodeId:
+          type: string
+        lastEpisodeNo:
+          type: integer
+        totalEpisodes:
+          type: integer
+        progressSec:
+          type: integer
+          description: Position within the last episode.
+        finished:
+          type: boolean
+          description: Watched the final released episode to the end.
+        updatedAt:
+          type: string
+          format: date-time
+    SavedDrama:
+      type: object
+      required:
+      - drama
+      - savedAt
+      properties:
+        drama:
+          $ref: '#/components/schemas/Drama'
+        savedAt:
+          type: string
+          format: date-time
+        lastEpisodeNo:
+          type:
+          - integer
+          - 'null'
+    LikedEpisode:
+      type: object
+      required:
+      - drama
+      - episode
+      - likedAt
+      properties:
+        drama:
+          $ref: '#/components/schemas/Drama'
+        episode:
+          type: object
+          required:
+          - id
+          - episodeNo
+          properties:
+            id:
+              type: string
+            episodeNo:
+              type: integer
+            coverUrl:
+              type:
+              - string
+              - 'null'
+        likedAt:
+          type: string
+          format: date-time
+    EpisodeLike:
+      type: object
+      required:
+      - episodeId
+      - liked
+      - likeCount
+      properties:
+        episodeId:
+          type: string
+        liked:
+          type: boolean
+        likeCount:
+          type: integer
+    AvatarUpload:
+      type: object
+      required:
+      - uploadUrl
+      - avatarUrl
+      - expiresAt
+      properties:
+        uploadUrl:
+          type: string
+          description: Presigned PUT URL; send the file with the same Content-Type.
+        avatarUrl:
+          type: string
+          description: Final public URL; pass to PATCH /me after the PUT succeeds.
+        expiresAt:
+          type: string
+          format: date-time
+        maxBytes:
+          type: integer
