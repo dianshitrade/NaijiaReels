@@ -5,6 +5,7 @@ import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
+import { resolveCoverUrl } from '../content/content.service';
 import { signMediaUrl } from './media-signer';
 
 const PLAY_URL_TTL_SEC = 2 * 60 * 60;
@@ -35,7 +36,10 @@ export class PlayService {
         });
       }
     }
-    return signMediaUrl(this.env.MEDIA_BASE_URL, e.hlsPath, this.env.MEDIA_SIGN_SECRET, PLAY_URL_TTL_SEC);
+    return {
+      ...signMediaUrl(this.env.MEDIA_BASE_URL, e.hlsPath, this.env.MEDIA_SIGN_SECRET, PLAY_URL_TTL_SEC),
+      coverUrl: resolveCoverUrl(e.coverPath, this.env.MEDIA_BASE_URL),
+    };
   }
 
   async unlockWithCoins(userId: string, episodeId: string) {

@@ -72,6 +72,7 @@ model Episode {
   title       String?
   durationSec Int      @default(0) @map("duration_sec")
   hlsPath     String   @map("hls_path")
+  coverPath   String?  @map("cover_path")
   free        Boolean  @default(false)
   priceCoins  Int      @default(0) @map("price_coins")
   createdAt   DateTime @default(now()) @map("created_at")

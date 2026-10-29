@@ -576,6 +576,11 @@ paths:
                       expiresAt:
                         type: string
                         format: date-time
+                      coverUrl:
+                        type:
+                          - string
+                          - 'null'
+                        description: Absolute per-episode cover image URL; null when absent.
               example:
                 code: 0
                 message: ok
@@ -1995,6 +2000,11 @@ components:
           type: boolean
         priceCoins:
           type: integer
+        coverUrl:
+          type:
+            - string
+            - 'null'
+          description: Absolute per-episode cover image URL; null when absent.
     DramaDetail:
       allOf:
         - $ref: '#/components/schemas/Drama'

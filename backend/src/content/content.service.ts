@@ -82,6 +82,7 @@ export class ContentService {
         free: e.free,
         locked: !e.free && !unlocked.has(e.id),
         priceCoins: e.priceCoins,
+        coverUrl: resolveCoverUrl(e.coverPath, this.env.MEDIA_BASE_URL),
       })),
     };
   }

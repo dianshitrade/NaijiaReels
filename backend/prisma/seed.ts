@@ -23,6 +23,11 @@ const CREATED_AT: Record<string, string> = {
   dr_prince: '2026-10-02T00:00:00.000Z',
   dr_lagos: '2026-10-01T00:00:00.000Z',
 };
+// Per-episode covers (relative to MEDIA_BASE_URL), keyed by `${dramaId}_ep${n}`.
+const EPISODE_COVERS: Record<string, string> = {
+  dr_mama_ep1: 'mama-in-law-wahala/ep1/cover.jpg',
+  dr_mama_ep2: 'mama-in-law-wahala/ep2/cover.jpg',
+};
 const FREE_EPISODES = 2;
 // Real (non-placeholder) episode durations in seconds, keyed by `${dramaId}_ep${n}`.
 const REAL_DURATIONS: Record<string, number> = { dr_mama_ep1: 86, dr_mama_ep2: 88 };
@@ -53,6 +58,7 @@ async function main(): Promise<void> {
         title: `Episode ${n}`,
         durationSec: REAL_DURATIONS[`${d.id}_ep${n}`] ?? 10,
         hlsPath: `${d.slug}/ep${n}/master.m3u8`,
+        coverPath: EPISODE_COVERS[`${d.id}_ep${n}`] ?? null,
         free,
         priceCoins: free ? 0 : PRICE_COINS,
       };
