@@ -83,6 +83,12 @@ class PlayerPool {
 
   PooledPlayer? get(String url) => _players[url];
 
+  Future<void> pauseAll() async {
+    for (final p in _players.values) {
+      await p.player.pause();
+    }
+  }
+
   Future<void> _evict() async {
     while (_players.length > maxPlayers) {
       final oldestKey = _players.keys.first;

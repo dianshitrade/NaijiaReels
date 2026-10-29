@@ -20,11 +20,27 @@ class ApiResponse<T> {
   }
 }
 
+/// Business error codes (keep in sync with contracts/errors.md).
+class ErrorCodes {
+  ErrorCodes._();
+  static const unauthorized = 40101;
+  static const refreshInvalid = 40102;
+  static const insufficientCoins = 40201;
+  static const episodeLocked = 40301;
+  static const notFound = 40401;
+}
+
 class ApiException implements Exception {
-  ApiException(this.code, this.message);
+  ApiException(this.code, this.message, {this.status, this.data});
   final int code;
   final String message;
+  final int? status;
+  final Object? data;
+
+  bool get isLocked => status == 403 && code == ErrorCodes.episodeLocked;
+  bool get isInsufficientCoins =>
+      status == 402 && code == ErrorCodes.insufficientCoins;
 
   @override
-  String toString() => 'ApiException($code): $message';
+  String toString() => 'ApiException($status/$code): $message';
 }
