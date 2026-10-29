@@ -1,16 +1,26 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AppException, ErrorCodes } from '../common/app.exception';
+import { ENV } from '../config/config.module';
+import type { Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 
 const dramaInclude = { tags: true } satisfies Prisma.DramaInclude;
 type DramaRow = Prisma.DramaGetPayload<{ include: typeof dramaInclude }>;
 
-export function toDrama(d: DramaRow) {
+/** Resolve a stored cover path (`<slug>/cover.jpg`, `/media/<slug>/cover.jpg` or absolute URL) to `${MEDIA_BASE_URL}/<slug>/cover.jpg`. */
+export function resolveCoverUrl(coverUrl: string | null, mediaBaseUrl: string): string | null {
+  if (!coverUrl) return null;
+  if (/^https?:\/\//i.test(coverUrl)) return coverUrl;
+  const rel = coverUrl.replace(/^\/+/, '').replace(/^media\//, '');
+  return `${mediaBaseUrl.replace(/\/+$/, '')}/${rel}`;
+}
+
+export function toDrama(d: DramaRow, mediaBaseUrl = '') {
   return {
     id: d.id,
     title: d.title,
-    coverUrl: d.coverUrl,
+    coverUrl: mediaBaseUrl ? resolveCoverUrl(d.coverUrl, mediaBaseUrl) : d.coverUrl,
     tags: d.tags.map((t) => t.slug),
     episodeCount: d.episodeCount,
     description: d.description,
@@ -19,7 +29,14 @@ export function toDrama(d: DramaRow) {
 
 @Injectable()
 export class ContentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(ENV) private readonly env: Env,
+  ) {}
+
+  private drama(d: DramaRow) {
+    return toDrama(d, this.env.MEDIA_BASE_URL);
+  }
 
   async home() {
     const dramas = await this.prisma.drama.findMany({
@@ -28,7 +45,7 @@ export class ContentService {
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
-    const items = dramas.map(toDrama);
+    const items = dramas.map((d) => this.drama(d));
     return { banners: items.slice(0, 3), sections: [{ title: 'Trending', items }, { title: 'New Releases', items: [...items].reverse() }] };
   }
 
@@ -41,7 +58,7 @@ export class ContentService {
       skip: (page - 1) * size,
       take: size + 1,
     });
-    return { items: rows.slice(0, size).map(toDrama), page, size, hasMore: rows.length > size };
+    return { items: rows.slice(0, size).map((d) => this.drama(d)), page, size, hasMore: rows.length > size };
   }
 
   async detail(id: string, userId?: string) {
@@ -56,7 +73,7 @@ export class ContentService {
         )
       : new Set<string>();
     return {
-      ...toDrama(d),
+      ...this.drama(d),
       episodes: d.episodes.map((e) => ({
         id: e.id,
         episodeNo: e.episodeNo,

@@ -1,0 +1,55 @@
+# Render Blueprint describing the NaijaReels staging stack (Frankfurt, free plan).
+# NOTE: Render Blueprints are read from the repo-root render.yaml by default.
+# This copy lives in infra/ as documentation / source of truth; copying it to the
+# repo root (or pointing the Blueprint at this path) needs separate approval.
+databases:
+  - name: naijareels-db
+    region: frankfurt
+    plan: free            # free Postgres expires 30 days after creation (current one: 2026-11-28)
+    databaseName: naija
+    user: naija
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: naijareels-api
+    runtime: docker
+    region: frankfurt
+    plan: free            # spins down when idle; cold start ~50s
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    branch: feat/T0-T1-scaffold
+    autoDeploy: true
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: naijareels-db
+          property: connectionString
+      # REDIS_URL intentionally unset: the API falls back to an in-memory KV store.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MEDIA_SIGN_SECRET
+        generateValue: true
+      - key: MEDIA_BASE_URL
+        value: https://naijareels-media.onrender.com
+      - key: SEED
+        value: "true"
+
+  - type: web
+    name: naijareels-media
+    runtime: static
+    branch: feat/T0-T1-scaffold
+    autoDeploy: true
+    rootDir: backend/media
+    buildCommand: "true"
+    staticPublishPath: .
+    headers:
+      - path: /*
+        name: Access-Control-Allow-Origin
+        value: "*"

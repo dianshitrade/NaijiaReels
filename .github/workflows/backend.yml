@@ -4,7 +4,7 @@ on:
   pull_request:
     paths: ["backend/**", "contracts/**", "docker-compose.yml", "infra/**", ".github/workflows/backend.yml"]
   push:
-    branches: [main]
+    branches: [main, "feat/**"]
     paths: ["backend/**", "contracts/**", "docker-compose.yml", "infra/**", ".github/workflows/backend.yml"]
 
 jobs:

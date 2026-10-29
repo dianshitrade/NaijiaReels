@@ -19,4 +19,10 @@ describe('validateEnv', () => {
     void _omit;
     expect(() => validateEnv(rest)).toThrow(/DATABASE_URL/);
   });
+  it('treats REDIS_URL as optional', () => {
+    const { REDIS_URL: _r, ...rest } = base;
+    void _r;
+    expect(validateEnv(rest).REDIS_URL).toBeUndefined();
+    expect(validateEnv({ ...rest, REDIS_URL: '' }).REDIS_URL).toBeUndefined();
+  });
 });

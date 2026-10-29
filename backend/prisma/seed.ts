@@ -28,7 +28,7 @@ async function main(): Promise<void> {
     const data = {
       title: d.title,
       description: d.description,
-      coverUrl: `/media/${d.slug}/cover.jpg`,
+      coverUrl: `${d.slug}/cover.jpg`,
       status: 'published',
       episodeCount: EPISODES,
       tags: { set: [], connect: d.tags.map((slug) => ({ slug })) },
