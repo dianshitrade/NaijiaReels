@@ -38,6 +38,26 @@ jobs:
       - name: Fill platform scaffolding (no overwrite)
         run: flutter create --platforms android --org com.naijareels --project-name naija_reels .
       - run: flutter pub get
+      - name: Setup release signing (if secrets present)
+        working-directory: app
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/naijareels-upload.jks
+            {
+              echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+              echo "keyPassword=$ANDROID_KEY_PASSWORD"
+              echo "keyAlias=$ANDROID_KEY_ALIAS"
+              echo "storeFile=../naijareels-upload.jks"
+            } > android/key.properties
+            echo "Release signing configured (alias=$ANDROID_KEY_ALIAS)"
+          else
+            echo "No signing secrets; release will fall back to debug signing"
+          fi
       - run: flutter analyze --no-fatal-infos
         timeout-minutes: 10
       - run: flutter test

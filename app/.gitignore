@@ -6,3 +6,9 @@ build/
 .idea/
 android/local.properties
 android/.gradle/
+
+# Signing keys — never commit
+*.jks
+*.keystore
+key.properties
+**/keys/
