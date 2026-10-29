@@ -16,6 +16,7 @@ import 'package:naija_reels/main.dart' show kAppLocale;
 /// subs_en / yo / fr / zh. Logs whether HLS tracks or the VTT fallback were used.
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
   testWidgets('live subtitles: off, picker, en/yo/fr/zh', (t) async {
     MediaKit.ensureInitialized();
     final dio = Dio(BaseOptions(baseUrl: Env.apiRoot, connectTimeout: const Duration(seconds: 90),
@@ -61,13 +62,19 @@ void main() {
         }),
       ),
     ));
-    await binding.convertFlutterSurfaceToImage();
     Future<void> wait(int s) async {
       for (var i = 0; i < s; i++) {
         await t.runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
         await t.pump(const Duration(milliseconds: 100));
       }
     }
+    // Host-side adb screencap (smoke.sh watches logcat for SHOT:<name>);
+    // captures the real screen incl. the native video surface.
+    Future<void> shot(String name) async {
+      debugPrint('SHOT:$name');
+      await wait(5);
+    }
+
     for (var i = 0; i < 90 && !p.ready.value; i++) {
       await wait(1);
     }
@@ -75,29 +82,35 @@ void main() {
     await wait(3);
     debugPrint('SUBS: off text="${p.player.state.subtitle.join(' ')}" current=${p.player.state.track.subtitle.id}');
     expect(find.byKey(const ValueKey('player-subtitle-text')), findsNothing);
-    await binding.takeScreenshot('subs_off');
+    await shot('subs_off');
 
     var anyText = false;
     for (final lang in ['en', 'yo', 'fr', 'zh-Hans']) {
       await t.runAsync(() => settings.choose(lang));
       await t.runAsync(() => pool.setSubtitleLang(settings.activeLang));
+      await t.runAsync(() async {
+        await p.player.seek(Duration.zero);
+        await p.player.play();
+      });
       String txt = '';
-      for (var i = 0; i < 25 && txt.isEmpty; i++) {
-        await wait(1);
+      for (var i = 0; i < 40 && txt.isEmpty; i++) {
+        await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 250)));
+        await t.pump(const Duration(milliseconds: 50));
         txt = p.player.state.subtitle.join(' ').trim();
-        if (txt.isEmpty && p.player.state.position > const Duration(seconds: 20)) {
-          await t.runAsync(() => p.player.seek(const Duration(seconds: 1)));
-        }
       }
+      if (txt.isNotEmpty) await t.runAsync(p.player.pause);
+      await wait(1);
       anyText |= txt.isNotEmpty;
       debugPrint('SUBS: lang=$lang applied=${p.appliedSubtitle} current=${p.player.state.track.subtitle.id}/'
-          '${p.player.state.track.subtitle.language} uri=${p.player.state.track.subtitle.uri} text="$txt"');
-      await binding.takeScreenshot(lang == 'zh-Hans' ? 'subs_zh' : 'subs_$lang');
+          '${p.player.state.track.subtitle.language} uri=${p.player.state.track.subtitle.uri} text="$txt" '
+          'onscreen=${find.byKey(const ValueKey('player-subtitle-text')).evaluate().isNotEmpty}');
+      await shot(lang == 'zh-Hans' ? 'subs_zh' : 'subs_$lang');
+      await t.runAsync(p.player.play);
     }
 
     showSubtitlePicker(sheetCtx, settings);
     await wait(2);
-    await binding.takeScreenshot('subs_picker');
+    await shot('subs_picker');
     expect(find.text('Yorùbá'), findsOneWidget);
     expect(anyText, isTrue);
     await t.runAsync(() => pool.disposeAll().timeout(const Duration(seconds: 20)));

@@ -142,8 +142,14 @@ jobs:
           SRC=${PIPESTATUS[0]}
           [ "$RC" = 0 ] && RC=$SRC
           adb logcat -c || true
+          # screencap on SHOT:<name> lines printed by subs_shots_test
+          ( adb logcat -v raw -s flutter | while IFS= read -r l; do
+              case "$l" in *SHOT:*) n=$(echo "${l##*SHOT:}" | tr -dc 'a-z_'); adb shell screencap -p /sdcard/$n.png && adb pull /sdcard/$n.png "$OUT/$n.png";; esac
+            done ) &
+          WATCH=$!
           SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 720 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/subs_shots_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/subs_shots.log
           SSRC=${PIPESTATUS[0]}
+          kill $WATCH 2>/dev/null || true
           adb logcat -d | grep -E 'SUBS:|\[Subs\]' > $OUT/subs_shots_logcat.txt || true
           [ "$RC" = 0 ] && RC=$SSRC
           # flutter drive uninstalls the app afterwards; reinstall so the launcher shows our icon

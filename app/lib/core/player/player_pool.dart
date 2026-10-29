@@ -145,6 +145,8 @@ class PooledPlayer {
   String? _subtitleLang;
   String? _applied; // 'off' | 'hls:<id>' | 'uri:<url>'
   bool _tracksSeen = false;
+  bool _fallbackReady = false;
+  Timer? _fallbackTimer;
 
   /// What is currently applied (for tests/logs).
   String? get appliedSubtitle => _applied;
@@ -170,7 +172,15 @@ class PooledPlayer {
       if (hls != null) {
         key = 'hls:${hls.id}';
         target = hls;
-      } else if (ext != null && _tracksSeen) {
+      } else if (ext != null && _tracksSeen && !_fallbackReady) {
+        // HLS renditions are often listed a moment after the first track
+        // event; give them a grace period before loading the external VTT.
+        _fallbackTimer ??= Timer(const Duration(seconds: 3), () {
+          _fallbackReady = true;
+          unawaited(_applySubtitle());
+        });
+        return;
+      } else if (ext != null && _fallbackReady) {
         key = 'uri:${ext.url}';
         target = SubtitleTrack.uri(ext.url, title: ext.label, language: lang);
       } else {
@@ -244,6 +254,7 @@ class PooledPlayer {
   Future<void> dispose() async {
     await _firstFrameSub?.cancel();
     await _tracksSub?.cancel();
+    _fallbackTimer?.cancel();
     _timeout?.cancel();
     _errGrace?.cancel();
     _playingFallback?.cancel();
