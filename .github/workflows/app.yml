@@ -73,6 +73,11 @@ jobs:
           flutter build apk --debug --target-platform android-arm64 $DEFINE
           cp build/app/outputs/flutter-apk/app-debug.apk NaijaReels-arm64-debug.apk
           ls -la *.apk
+      - name: Print release signing certificate
+        run: |
+          AS=$(ls -d $ANDROID_HOME/build-tools/*/ | sort -V | tail -1)apksigner
+          $AS verify --print-certs NaijaReels-arm64-release.apk | tee signing.txt
+          if grep -q 'CN=Android Debug' signing.txt; then echo '::warning::release APK is DEBUG-signed'; fi
       - uses: actions/upload-artifact@v4
         with:
           name: naijareels-arm64-release

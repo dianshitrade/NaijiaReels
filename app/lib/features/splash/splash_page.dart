@@ -4,13 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/router.dart';
+import '../../app/theme.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/local_storage.dart';
 import '../../shared/widgets/brand_logo.dart';
 
 /// Ensures a guest session (deviceId + tokens in Hive), then goes home.
 class SplashPage extends StatefulWidget {
-  const SplashPage({super.key});
+  const SplashPage({super.key, this.autoBoot = true});
+  final bool autoBoot;
 
   @override
   State<SplashPage> createState() => _SplashPageState();
@@ -30,7 +32,7 @@ class _SplashPageState extends State<SplashPage> {
   @override
   void initState() {
     super.initState();
-    _boot();
+    if (widget.autoBoot) _boot();
   }
 
   Future<void> _boot() async {
@@ -57,10 +59,23 @@ class _SplashPageState extends State<SplashPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -0.3),
+            radius: 1.1,
+            colors: [Color(0xFF0F3D26), AppColors.background],
+          ),
+        ),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const BrandLogo(fontSize: 40),
-          const SizedBox(height: 24),
+          const SizedBox(height: 56, child: BrandLogo(fontSize: 40)),
+          const SizedBox(height: 8),
+          const Text('Naija stories. Short & sweet.',
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: AppColors.muted)),
+          const SizedBox(height: 32),
           if (_error == null) ...[
             const CircularProgressIndicator(),
             if (_slow)

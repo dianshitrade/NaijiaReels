@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repository.dart';
-import '../home/home_page.dart';
+import '../home/discover_page.dart';
 
 class DramaListPage extends ConsumerWidget {
   const DramaListPage({super.key});
@@ -21,7 +21,7 @@ class DramaListPage extends ConsumerWidget {
               crossAxisCount: 3,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: 0.45),
+              childAspectRatio: 9 / 16),
           itemCount: items.length,
           itemBuilder: (_, i) => DramaCard(items[i]),
         ),

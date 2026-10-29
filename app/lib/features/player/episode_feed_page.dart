@@ -35,6 +35,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
   List<EpisodeItem> _episodes = const [];
   int _index = 0;
   bool _dialogOpen = false;
+  String? _title;
 
   @override
   void initState() {
@@ -46,7 +47,10 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
   Future<void> _load() async {
     final d = await ref.read(dramaDetailProvider(widget.dramaId).future);
     if (!mounted) return;
-    setState(() => _episodes = d.episodes);
+    setState(() {
+      _episodes = d.episodes;
+      _title = d.title;
+    });
     await _focus(_index);
   }
 
@@ -191,12 +195,93 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     }
     return Stack(fit: StackFit.expand, children: [
       content,
-      Positioned(
-        left: 16,
-        bottom: 40,
-        child: Text('EP ${ep.episodeNo} · ${ep.title}',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      PlayerChrome(
+        title: _title ?? '',
+        episodeNo: ep.episodeNo,
+        episodeTitle: ep.title,
+        total: _episodes.length,
+        index: i,
       ),
     ]);
+  }
+}
+
+/// Short-drama style overlay: bottom gradient, title, EP badge, side actions.
+class PlayerChrome extends StatelessWidget {
+  const PlayerChrome({
+    super.key,
+    required this.title,
+    required this.episodeNo,
+    required this.episodeTitle,
+    required this.total,
+    required this.index,
+  });
+  final String title;
+  final int episodeNo;
+  final String episodeTitle;
+  final int total;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(fit: StackFit.expand, children: [
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment(0, 0.2),
+              end: Alignment.bottomCenter,
+              colors: [Colors.transparent, Color(0xE6000000)],
+            ),
+          ),
+        ),
+        Positioned(
+          right: 12,
+          bottom: 140,
+          child: Column(children: [
+            for (final a in const [
+              (Icons.favorite, 'Like'),
+              (Icons.bookmark, 'Save'),
+              (Icons.share, 'Share'),
+            ]) ...[
+              Icon(a.$1, size: 32, color: Colors.white),
+              Text(a.$2, style: const TextStyle(fontSize: 11)),
+              const SizedBox(height: 16),
+            ],
+          ]),
+        ),
+        Positioned(
+          left: 16,
+          right: 72,
+          bottom: 40,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
+              child: Text('EP $episodeNo / $total',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+            ),
+            const SizedBox(height: 8),
+            if (title.isNotEmpty)
+              Text(title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+            Text(episodeTitle,
+                maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70)),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: total == 0 ? 0 : (index + 1) / total,
+                minHeight: 3,
+                color: AppColors.primary,
+                backgroundColor: Colors.white24,
+              ),
+            ),
+          ]),
+        ),
+      ]),
+    );
   }
 }

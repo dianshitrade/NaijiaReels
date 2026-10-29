@@ -22,7 +22,7 @@ class DramaDetailPage extends ConsumerWidget {
         error: (e, _) => Center(child: Text('Load failed: $e')),
         data: (drama) => ListView(padding: const EdgeInsets.all(16), children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SizedBox(width: 120, child: CoverImage(drama.coverUrl)),
+            SizedBox(width: 120, child: CoverImage(drama.coverUrl, title: drama.title)),
             const SizedBox(width: 16),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

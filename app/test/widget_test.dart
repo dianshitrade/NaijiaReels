@@ -37,6 +37,6 @@ void main() {
 
   testWidgets('BrandLogo renders', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: BrandLogo()));
-    expect(find.byType(RichText), findsWidgets);
+    expect(find.textContaining('Naija', findRichText: true), findsOneWidget);
   });
 }
