@@ -85,6 +85,7 @@ void main() {
     await shot('subs_off');
 
     var anyText = false;
+    var prevTxt = '';
     for (final lang in ['en', 'yo', 'fr', 'zh-Hans']) {
       await t.runAsync(() => settings.choose(lang));
       await t.runAsync(() => pool.setSubtitleLang(settings.activeLang));
@@ -92,12 +93,17 @@ void main() {
         await p.player.seek(Duration.zero);
         await p.player.play();
       });
+      // Wait for a cue of THIS language actually drawn by the overlay
+      // (player.state.subtitle can hold the previous track's stale cue).
       String txt = '';
-      for (var i = 0; i < 40 && txt.isEmpty; i++) {
+      final textF = find.byKey(const ValueKey('player-subtitle-text'));
+      for (var i = 0; i < 80 && txt.isEmpty; i++) {
         await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 250)));
         await t.pump(const Duration(milliseconds: 50));
-        txt = p.player.state.subtitle.join(' ').trim();
+        final shown = textF.evaluate().isEmpty ? '' : (t.widget<Text>(textF).data ?? '').trim();
+        if (shown.isNotEmpty && shown != prevTxt) txt = shown;
       }
+      prevTxt = txt;
       if (txt.isNotEmpty) await t.runAsync(p.player.pause);
       await wait(1);
       anyText |= txt.isNotEmpty;
