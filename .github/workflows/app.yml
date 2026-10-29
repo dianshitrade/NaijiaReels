@@ -123,6 +123,9 @@ jobs:
           SMOKE_OUT=$(cd $OUT && pwd) flutter drive --driver=test_driver/integration_test.dart --target=integration_test/smoke_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/smoke.log
           RC=${PIPESTATUS[0]}
           snap final || true
+          # flutter drive uninstalls the app afterwards; reinstall so the launcher shows our icon
+          APK=$(ls build/app/outputs/flutter-apk/app-debug.apk 2>/dev/null) && adb install -r "$APK" || true
+          sleep 3
           adb shell input keyevent KEYCODE_HOME; sleep 3; snap launcher_home || true
           adb shell input swipe 540 2000 540 400 300; sleep 3; snap launcher_drawer || true
           adb shell cmd package resolve-activity --brief com.naijareels.app > $OUT/launcher_resolve.txt 2>&1 || true
