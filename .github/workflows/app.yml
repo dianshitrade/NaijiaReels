@@ -152,6 +152,17 @@ jobs:
           kill $WATCH 2>/dev/null || true
           adb logcat -d | grep -E 'SUBS:|\[Subs\]' > $OUT/subs_shots_logcat.txt || true
           [ "$RC" = 0 ] && RC=$SSRC
+          adb logcat -c || true
+          ( adb logcat -v raw -s flutter | while IFS= read -r l; do
+              case "$l" in *SHOT:*) n=$(echo "${l##*SHOT:}" | tr -dc 'a-z_'); adb shell screencap -p /sdcard/$n.png && adb pull /sdcard/$n.png "$OUT/$n.png";; esac
+            done ) &
+          WATCH=$!
+          SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/tiktok_shots_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/tiktok_shots.log
+          TRC=${PIPESTATUS[0]}
+          kill $WATCH 2>/dev/null || true
+          adb logcat -d -v time > $OUT/tiktok_logcat.txt || true
+          grep -E 'QUALITY:|\[Quality\]|\[Play\] (ready|startup)|first frame' $OUT/tiktok_logcat.txt > $OUT/quality_upgrade.log || true
+          [ "$RC" = 0 ] && RC=$TRC
           # flutter drive uninstalls the app afterwards; reinstall so the launcher shows our icon
           APK=$(ls build/app/outputs/flutter-apk/app-debug.apk 2>/dev/null) && adb install -r "$APK" || true
           sleep 3

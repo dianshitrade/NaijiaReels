@@ -52,11 +52,7 @@ void main() {
                 subtitleViewConfiguration: playerSubtitleConfig(0)))),
             PlayerChrome(title: 'Mama-in-Law Wahala', episodeNo: 1, episodeTitle: 'Live subtitles',
                 total: 6, index: 0,
-                subtitleButton: Row(mainAxisSize: MainAxisSize.min, children: [
-                  SubtitleMenuArrow(onPick: () => showSubtitlePicker(ctx, settings)),
-                  SubtitleButton(settings: settings, onTap: settings.toggle,
-                      onPick: () => showSubtitlePicker(ctx, settings)),
-                ])),
+                translation: SeeTranslationLink(settings: settings, onPick: () => showSubtitlePicker(ctx, settings))),
             PlayerSubtitleOverlay(player: p.player, enabled: settings.enabled),
           ]);
         }),

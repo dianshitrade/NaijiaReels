@@ -128,7 +128,7 @@ void main() {
     expect(MaterialLocalizations.of(ctx).okButtonLabel, 'OK');
   });
 
-  testWidgets('CC button toggles; picker lists English/endonym labels', (t) async {
+  testWidgets('See translation link opens picker; label follows choice', (t) async {
     final s = SubtitleSettings(systemLocale: () => const Locale('yo'));
     await t.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -136,30 +136,42 @@ void main() {
         body: ListenableBuilder(
           listenable: s,
           builder: (ctx, _) => Center(
-            child: SubtitleButton(
-              settings: s,
-              onTap: s.toggle,
-              onPick: () => showSubtitlePicker(ctx, s),
-            ),
+            child: SeeTranslationLink(settings: s, onPick: () => showSubtitlePicker(ctx, s)),
           ),
         ),
       ),
     ));
-    expect(find.text('CC off'), findsOneWidget);
-    await t.tap(find.byKey(const ValueKey('player-subs')));
-    await t.pump();
-    expect(find.text('YO'), findsOneWidget);
-    await t.longPress(find.byKey(const ValueKey('player-subs')));
+    expect(find.text('See translation'), findsOneWidget);
+    expect(find.byKey(const ValueKey('player-subs')), findsNothing); // CC button gone
+    await t.tap(find.byKey(const ValueKey('see-translation')));
     await t.pumpAndSettle();
     for (final l in ['Off', 'English', 'Naija Pidgin', 'Yorùbá', 'Igbo', 'Hausa', 'Français', 'Chinese']) {
       expect(find.text(l), findsOneWidget);
     }
+    // system-locale language (auto pick) is listed first after Off
+    final yoY = t.getTopLeft(find.byKey(const ValueKey('subs-opt-yo'))).dy;
+    final enY = t.getTopLeft(find.byKey(const ValueKey('subs-opt-en'))).dy;
+    expect(yoY < enY, isTrue);
+    await t.tap(find.byKey(const ValueKey('subs-opt-yo')));
+    await t.pumpAndSettle();
+    expect(s.activeLang, 'yo');
+    expect(find.text('Translation: Yorùbá'), findsOneWidget);
+
+    await t.tap(find.byKey(const ValueKey('see-translation')));
+    await t.pumpAndSettle();
     await t.ensureVisible(find.byKey(const ValueKey('subs-opt-zh-Hans')));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const ValueKey('subs-opt-zh-Hans')));
     await t.pumpAndSettle();
     expect(s.activeLang, 'zh-Hans');
     expect(LocalStorage.subtitleLang, 'zh-Hans');
-    expect(find.text('ZH'), findsOneWidget);
+    expect(find.text('Translation: Chinese'), findsOneWidget);
+
+    await t.tap(find.byKey(const ValueKey('see-translation')));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('subs-opt-off')));
+    await t.pumpAndSettle();
+    expect(s.activeLang, isNull);
+    expect(find.text('See translation'), findsOneWidget);
   });
 }

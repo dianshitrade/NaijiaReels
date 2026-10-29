@@ -21,6 +21,9 @@ class SubtitleSettings extends ChangeNotifier {
   bool get enabled => _enabled;
   String? get manualLang => _manual;
 
+  /// Language suggested by the system locale.
+  String get systemLang => subtitleLangForLocale(_systemLocale());
+
   /// Language that would be used when on.
   String get preferredLang {
     final m = _manual;
@@ -50,57 +53,33 @@ class SubtitleSettings extends ChangeNotifier {
   }
 }
 
-/// Right-rail CC button: tap toggles, long-press or the small arrow opens
-/// the language picker.
-class SubtitleButton extends StatelessWidget {
-  const SubtitleButton({super.key, required this.settings, required this.onTap, required this.onPick});
+/// TikTok-style small "See translation" link under the title/description.
+/// Off: "See translation"; on: "Translation: Yorùbá". Tap opens the picker.
+class SeeTranslationLink extends StatelessWidget {
+  const SeeTranslationLink({super.key, required this.settings, required this.onPick});
   final SubtitleSettings settings;
-  final VoidCallback onTap;
   final VoidCallback onPick;
+
+  static String labelFor(SubtitleSettings s) =>
+      s.enabled ? 'Translation: ${subtitleLabel(s.preferredLang)}' : 'See translation';
 
   @override
   Widget build(BuildContext context) {
-    final on = settings.enabled;
-    final code = settings.preferredLang;
-    final short = code == 'zh-Hans' ? 'ZH' : code.toUpperCase();
-    return Material(
-      color: Colors.transparent,
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        InkWell(
-          key: const ValueKey('player-subs'),
-          onTap: onTap,
-          onLongPress: onPick,
-          borderRadius: BorderRadius.circular(24),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            child: Column(children: [
-              Icon(on ? Icons.closed_caption : Icons.closed_caption_off_outlined,
-                  size: 32, color: on ? Colors.white : Colors.white70),
-              const SizedBox(height: 2),
-              Text(on ? short : 'CC off',
-                  key: const ValueKey('player-subs-label'),
-                  style: const TextStyle(fontSize: 11, color: Colors.white)),
-            ]),
-          ),
-        ),
-      ]),
+    return GestureDetector(
+      key: const ValueKey('see-translation'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onPick,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Text(labelFor(settings),
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white70,
+                fontFamilyFallback: kSubtitleFontFallback)),
+      ),
     );
   }
-}
-
-/// Small arrow next to the CC button that opens the picker.
-class SubtitleMenuArrow extends StatelessWidget {
-  const SubtitleMenuArrow({super.key, required this.onPick});
-  final VoidCallback onPick;
-  @override
-  Widget build(BuildContext context) => InkWell(
-        key: const ValueKey('player-subs-menu'),
-        onTap: onPick,
-        child: const Padding(
-          padding: EdgeInsets.all(2),
-          child: Icon(Icons.arrow_drop_down, size: 20, color: Colors.white70),
-        ),
-      );
 }
 
 Future<void> showSubtitlePicker(BuildContext context, SubtitleSettings settings) {
@@ -115,11 +94,20 @@ Future<void> showSubtitlePicker(BuildContext context, SubtitleSettings settings)
             child: Text('Subtitles', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           ),
           _option(ctx, settings, null, 'Off'),
-          for (final l in kSubtitleLangs) _option(ctx, settings, l.code, l.label),
+          // System-locale language first (auto pick), then the rest.
+          for (final l in _ordered(settings)) _option(ctx, settings, l.code, l.label),
         ]),
       ),
     ),
   );
+}
+
+List<SubtitleLang> _ordered(SubtitleSettings s) {
+  final auto = s.systemLang;
+  return [
+    ...kSubtitleLangs.where((l) => l.code == auto),
+    ...kSubtitleLangs.where((l) => l.code != auto),
+  ];
 }
 
 Widget _option(BuildContext ctx, SubtitleSettings s, String? code, String label) {

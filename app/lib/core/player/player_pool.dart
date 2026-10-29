@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
@@ -50,17 +53,44 @@ class PooledPlayer {
     unawaited(_upgradeHlsBitrate());
   }
 
+  /// Adaptive quality: start on the lowest rung (fast first frame), then
+  /// measure real throughput on the top rung's first segment and switch the
+  /// video track to the highest rung the link sustains. Rungs come from the
+  /// master playlist (nothing hard-coded), so a new "original" rung is used
+  /// automatically.
   Future<void> _upgradeHlsBitrate() async {
     if (_upgradedBitrate) return;
     _upgradedBitrate = true;
     final native = player.platform;
     if (native is! NativePlayer) return;
     try {
-      // "no" = unlimited → mpv may switch to higher HLS variant (720p).
-      await native.setProperty('hls-bitrate', 'no');
-      debugPrint('[Play] hls-bitrate upgraded to unlimited url=$url');
+      await native.setProperty('hls-bitrate', 'max');
+      final variants = await fetchHlsVariants(url);
+      if (variants.isEmpty) return;
+      debugPrint('[Quality] master rungs: '
+          '${variants.map((v) => '${v.resolution ?? '?'}@${v.bandwidth ~/ 1000}k').join(', ')}');
+      final top = variants.last;
+      final bps = await measureThroughput(top.uri);
+      final target = pickVariant(variants, bps);
+      debugPrint('[Quality] measured ${bps ~/ 1000} kbps -> target '
+          '${target.resolution ?? '?'}@${target.bandwidth ~/ 1000}k');
+      final vids = player.state.tracks.video.where((t) => (t.h ?? 0) > 0).toList();
+      debugPrint('[Quality] video tracks: ${vids.map((t) => '${t.id}:${t.w}x${t.h}@${t.bitrate}').toList()}');
+      final th = target.height;
+      VideoTrack? match;
+      for (final t in vids) {
+        if (th != null && t.h == th) match = t;
+      }
+      if (match == null && vids.isNotEmpty && th != null) {
+        vids.sort((a, b) => (a.h! - th).abs().compareTo((b.h! - th).abs()));
+        match = vids.first;
+      }
+      if (match != null && match.h != player.state.height) {
+        debugPrint('[Quality] switch video track -> ${match.id} ${match.w}x${match.h}');
+        await player.setVideoTrack(match);
+      }
     } catch (e) {
-      debugPrint('[Play] hls-bitrate upgrade failed: $e');
+      debugPrint('[Quality] upgrade failed: $e');
     }
   }
 
@@ -82,39 +112,18 @@ class PooledPlayer {
       if ((w ?? 0) > 0) _markReady('width=$w');
     }));
     _subs.add(player.stream.height.listen((h) {
-      if ((h ?? 0) > 0) _markReady('height=$h');
+      if ((h ?? 0) > 0) {
+        _markReady('height=$h');
+        debugPrint('[Quality] now ${player.state.width}x$h url=$url');
+      }
     }));
     _subs.add(player.stream.position.listen((pos) {
       if (pos > Duration.zero) _markReady('position=$pos');
     }));
-    // Safety net for devices where width/height never fire but playback works:
-    // if playing continuously for >=1s, drop the poster.
-    DateTime? playingSince;
-    _subs.add(player.stream.playing.listen((playing) {
-      if (playing) {
-        playingSince ??= DateTime.now();
-        final elapsed = DateTime.now().difference(playingSince!);
-        if (elapsed >= const Duration(seconds: 1)) {
-          _markReady('playing>${elapsed.inMilliseconds}ms');
-        } else {
-          _playingFallback?.cancel();
-          _playingFallback = Timer(
-            const Duration(seconds: 1) - elapsed,
-            () {
-              if (player.state.playing) _markReady('playing>=1s');
-            },
-          );
-        }
-      } else {
-        playingSince = null;
-        _playingFallback?.cancel();
-      }
-    }));
-    if (player.state.playing) {
-      _playingFallback = Timer(const Duration(seconds: 1), () {
-        if (player.state.playing) _markReady('seed-playing>=1s');
-      });
-    }
+    // NOTE: no "playing for 1s" fallback. mpv reports playing=true while it is
+    // still waiting for the first HLS segment; dropping the poster then left a
+    // pure black screen (root cause of the 03:06 black-screen report). Only a
+    // decoded frame (width/height) or advancing position counts as ready.
     _subs.add(player.stream.error.listen((e) {
       debugPrint('[Play] mpv error: $e url=$url');
       lastError = e;
@@ -229,11 +238,11 @@ class PooledPlayer {
     // lavf logs "Failed to create file cache" and can stall start.
     await native.setProperty('cache', 'no');
     await native.setProperty('cache-on-disk', 'no');
-    // Prefer ~360p (master lists 1Mbps) until first frame, then upgrade.
-    await native.setProperty('hls-bitrate', '1100000');
+    // Lowest rung until first frame, then [_upgradeHlsBitrate].
+    await native.setProperty('hls-bitrate', 'min');
     // Subtitles are off by default: never let mpv autoselect a track.
     if (_subtitleLang == null) await native.setProperty('sid', 'no');
-    debugPrint('[Play] startup props: cache=no hls-bitrate=1100000 url=$url');
+    debugPrint('[Play] startup props: cache=no hls-bitrate=min url=$url');
   }
 
   Future<void> _open({required bool play}) async {
@@ -368,4 +377,90 @@ class PlayerPool {
     }
     _players.clear();
   }
+}
+
+/// One `#EXT-X-STREAM-INF` rung of an HLS master playlist.
+class HlsVariant {
+  const HlsVariant(this.bandwidth, this.resolution, this.uri);
+  final int bandwidth;
+  final String? resolution; // "720x1280"
+  final String uri; // absolute
+  int? get height => resolution == null ? null : int.tryParse(resolution!.split('x').last);
+}
+
+/// Parses rungs (sorted by bandwidth ascending), resolving relative URIs.
+List<HlsVariant> parseHlsMaster(String body, String masterUrl) {
+  final base = Uri.parse(masterUrl);
+  final out = <HlsVariant>[];
+  final lines = body.split(RegExp(r'\r?\n'));
+  for (var i = 0; i < lines.length; i++) {
+    final l = lines[i].trim();
+    if (!l.startsWith('#EXT-X-STREAM-INF:')) continue;
+    final bw = int.tryParse(RegExp(r'(?:^|[:,])BANDWIDTH=(\d+)').firstMatch(l)?.group(1) ?? '');
+    final res = RegExp(r'RESOLUTION=(\d+x\d+)').firstMatch(l)?.group(1);
+    var j = i + 1;
+    while (j < lines.length && (lines[j].trim().isEmpty || lines[j].trim().startsWith('#'))) {
+      j++;
+    }
+    if (bw == null || j >= lines.length) continue;
+    var u = base.resolve(lines[j].trim());
+    if (u.query.isEmpty && base.query.isNotEmpty) u = u.replace(query: base.query);
+    out.add(HlsVariant(bw, res, u.toString()));
+  }
+  out.sort((a, b) => a.bandwidth.compareTo(b.bandwidth));
+  return out;
+}
+
+/// Highest rung whose BANDWIDTH fits in 80% of [bps]; lowest if none fits.
+HlsVariant pickVariant(List<HlsVariant> v, int bps) {
+  var best = v.first;
+  for (final x in v) {
+    if (x.bandwidth <= bps * 0.8) best = x;
+  }
+  return best;
+}
+
+Future<String> _httpGet(String u, {int maxBytes = 1 << 20}) async {
+  final c = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+  try {
+    final r = await (await c.getUrl(Uri.parse(u))).close().timeout(const Duration(seconds: 15));
+    final b = BytesBuilder();
+    await for (final chunk in r.timeout(const Duration(seconds: 15))) {
+      b.add(chunk);
+      if (b.length > maxBytes) break;
+    }
+    return utf8.decode(b.takeBytes(), allowMalformed: true);
+  } finally {
+    c.close(force: true);
+  }
+}
+
+Future<List<HlsVariant>> fetchHlsVariants(String masterUrl) async =>
+    parseHlsMaster(await _httpGet(masterUrl), masterUrl);
+
+/// Downloads (up to ~3 MB of) the first media segment of [variantUrl] and
+/// returns bits per second.
+Future<int> measureThroughput(String variantUrl) async {
+  final pl = await _httpGet(variantUrl);
+  final base = Uri.parse(variantUrl);
+  final seg = pl.split(RegExp(r'\r?\n')).map((l) => l.trim()).firstWhere(
+      (l) => l.isNotEmpty && !l.startsWith('#'),
+      orElse: () => '');
+  if (seg.isEmpty) return 0;
+  var u = base.resolve(seg);
+  if (u.query.isEmpty && base.query.isNotEmpty) u = u.replace(query: base.query);
+  final c = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+  final sw = Stopwatch()..start();
+  var n = 0;
+  try {
+    final r = await (await c.getUrl(u)).close().timeout(const Duration(seconds: 15));
+    await for (final chunk in r.timeout(const Duration(seconds: 15))) {
+      n += chunk.length;
+      if (n > 3 << 20) break;
+    }
+  } finally {
+    c.close(force: true);
+  }
+  final ms = sw.elapsedMilliseconds.clamp(1, 1 << 30);
+  return (n * 8 * 1000) ~/ ms;
 }

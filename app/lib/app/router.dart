@@ -38,6 +38,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, s) => EpisodeFeedPage(
               dramaId: s.pathParameters['id']!,
               initialIndex: int.tryParse(s.uri.queryParameters['ep'] ?? '') ?? 0,
+              tab: s.uri.queryParameters['tab'],
             ),
           ),
         ],

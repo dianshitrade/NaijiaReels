@@ -77,6 +77,8 @@ void main() {
     expect(hearts(), findsNothing);
     await t.pumpAndSettle();
     expect(hearts(), findsNothing);
-    expect(find.byIcon(Icons.favorite), findsOneWidget); // button now liked
+    final icon = t.widget<Icon>(
+        find.descendant(of: find.byKey(const ValueKey('player-like')), matching: find.byType(Icon)));
+    expect(icon.color, const Color(0xFFFE2C55)); // button now liked
   });
 }

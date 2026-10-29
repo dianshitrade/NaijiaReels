@@ -51,12 +51,17 @@ void main() {
         }),
       ),
     ));
-    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+    Color? likeColor() => t
+        .widget<Icon>(find.descendant(of: find.byKey(const ValueKey('player-like')), matching: find.byType(Icon)))
+        .color;
+    expect(likeColor(), Colors.white);
+    expect(find.text('100'), findsOneWidget);
     await t.tap(find.byKey(const ValueKey('player-like')));
     await t.pump();
     expect(liked, isTrue);
     expect(count, 101);
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(likeColor(), const Color(0xFFFE2C55));
+    expect(find.text('101'), findsOneWidget);
   });
 
   testWidgets('Share button invokes share callback', (t) async {
