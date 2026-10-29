@@ -31,7 +31,11 @@ const Map<String, _DramaExtras> _extras = {
   'dr_mama': _DramaExtras(1284000, 3120, 'hot', 'ongoing', 60,
       TopComment(text: 'Mama Bisi no go kill me with laugh 😂', likeCount: 4210, userName: 'Tunde_Ib')),
   'dr_prince': _DramaExtras(856000, 1450, 'new', 'completed', 40),
+  'dr_lagos': _DramaExtras(402000, 610, null, 'ongoing', 50),
 };
+
+/// Contract chart examples: rankChange per id (null = new entry).
+const Map<String, int?> _rankChange = {'dr_mama': 2, 'dr_prince': null, 'dr_lagos': -1};
 
 const _comments = [
   'Wetin you dey watch? This one sweet die!',
@@ -117,6 +121,75 @@ class MockApi {
     }
   }
 
+  /// GET /api/v1/dramas?tag&sort=new|hot&genre&status (contract fields mocked on real /dramas).
+  Future<List<Drama>> dramas({String sort = 'hot', String? genre, String? status}) async {
+    final real = await _repo.dramas();
+    var list = [for (final d in real) enrichDrama(d)];
+    if (genre != null) list = list.where((d) => d.tags.any((t) => t.toLowerCase() == genre)).toList();
+    if (status != null) list = list.where((d) => d.status == status).toList();
+    if (sort == 'hot') {
+      list.sort((a, b) => (b.heatCount ?? 0).compareTo(a.heatCount ?? 0));
+    } else {
+      list = list.reversed.toList(); // no release date yet: newest = last in catalog
+    }
+    return list;
+  }
+
+  /// GET /api/v1/charts?type=hot|trending|new|completed (max 50).
+  Future<List<ChartItem>> charts({String type = 'hot'}) async {
+    var list = await dramas(sort: type == 'new' ? 'new' : 'hot', status: type == 'completed' ? 'completed' : null);
+    if (type == 'trending') {
+      list = [...list]..sort((a, b) => (b.watchingCount ?? 0).compareTo(a.watchingCount ?? 0));
+    }
+    return [
+      for (var i = 0; i < list.length && i < 50; i++)
+        ChartItem(
+          drama: list[i],
+          rank: i + 1,
+          rankChange: _rankChange.containsKey(list[i].id) ? _rankChange[list[i].id] : (list[i].id.hashCode % 5) - 2,
+        ),
+    ];
+  }
+
+  final Map<String, int> _reminderCount = {};
+
+  /// GET /api/v1/dramas/coming-soon (ordered by releaseAt asc).
+  Future<List<ComingSoonDrama>> comingSoon() async {
+    ComingSoonDrama cs(String id, String title, List<String> tags, String desc, int total, String at, bool set, int n) {
+      final on = _reminders.contains(id) || (set && !_reminderOff.contains(id));
+      return ComingSoonDrama(
+        drama: Drama(
+            id: id,
+            title: title,
+            coverUrl: '',
+            tags: tags,
+            episodeCount: 0,
+            description: desc,
+            heatCount: 0,
+            watchingCount: 0,
+            badge: 'new',
+            status: 'ongoing',
+            totalEpisodes: total),
+        releaseAt: DateTime.parse(at),
+        reminderSet: on,
+        reminderCount: _reminderCount[id] ?? n,
+      );
+    }
+
+    return [
+      // Contract example (cover not uploaded yet → branded fallback cover).
+      cs('dr_owambe', 'Owambe Queens', ['comedy', 'romance'], 'Aso-ebi rivalry at the biggest party in Surulere.', 45,
+          '2026-11-14T18:00:00Z', true, 8120),
+      // Placeholder titles (mock only).
+      cs('dr_danfo', 'Danfo Driver Diaries', ['comedy', 'nollywood'], 'One bus, one driver, a hundred Lagos stories.',
+          30, '2026-11-21T18:00:00Z', false, 2310),
+      cs('dr_aso', 'Aso Rock Secrets', ['drama', 'thriller'], 'An intern stumbles on a secret that could shake Abuja.',
+          50, '2026-12-05T18:00:00Z', false, 1540),
+    ];
+  }
+
+  final Set<String> _reminderOff = {};
+
   /// POST|DELETE /api/v1/episodes/{id}/like
   Future<void> setLiked(String episodeId, bool liked) async => liked ? _liked.add(episodeId) : _liked.remove(episodeId);
 
@@ -124,7 +197,19 @@ class MockApi {
   Future<void> setSaved(String dramaId, bool saved) async => saved ? _saved.add(dramaId) : _saved.remove(dramaId);
 
   /// POST|DELETE /api/v1/dramas/{id}/reminder
-  Future<void> setReminder(String dramaId, bool on) async => on ? _reminders.add(dramaId) : _reminders.remove(dramaId);
+  /// Idempotent; returns the contract body `{dramaId, reminderSet, releaseAt}`.
+  Future<Map<String, Object?>> setReminder(String dramaId, bool on, {int? countBefore, DateTime? releaseAt}) async {
+    final was = _reminders.contains(dramaId) || (dramaId == 'dr_owambe' && !_reminderOff.contains(dramaId));
+    if (on) {
+      _reminders.add(dramaId);
+      _reminderOff.remove(dramaId);
+    } else {
+      _reminders.remove(dramaId);
+      _reminderOff.add(dramaId);
+    }
+    if (countBefore != null && was != on) _reminderCount[dramaId] = countBefore + (on ? 1 : -1);
+    return {'dramaId': dramaId, 'reminderSet': on, 'releaseAt': releaseAt?.toUtc().toIso8601String()};
+  }
 
   /// POST /api/v1/rewards/{taskId}/claim → returns false on 40903 (already claimed).
   Future<bool> claim(String taskId) async => _claimed.add(taskId);
@@ -162,6 +247,22 @@ class MockApi {
         'chests': [],
       };
 }
+
+/// GET /dramas (mocked contract fields), keyed "sort|genre|status".
+final theaterDramasProvider = FutureProvider.autoDispose.family<List<Drama>, String>((ref, key) {
+  final p = key.split('|');
+  return ref
+      .watch(mockApiProvider)
+      .dramas(sort: p[0], genre: p[1].isEmpty ? null : p[1], status: p[2].isEmpty ? null : p[2]);
+});
+
+/// GET /charts?type=…
+final chartsProvider = FutureProvider.autoDispose
+    .family<List<ChartItem>, String>((ref, type) => ref.watch(mockApiProvider).charts(type: type));
+
+/// GET /dramas/coming-soon
+final comingSoonProvider =
+    FutureProvider.autoDispose<List<ComingSoonDrama>>((ref) => ref.watch(mockApiProvider).comingSoon());
 
 final mockApiProvider = Provider<MockApi>((ref) => MockApi(ref.watch(repositoryProvider)));
 

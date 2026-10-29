@@ -7,7 +7,11 @@ import 'brand_logo.dart';
 /// 9:16 rounded cover. Falls back to a branded gradient with the title.
 class CoverImage extends StatelessWidget {
   const CoverImage(this.url,
-      {super.key, this.title = '', this.radius = 12, this.showFallbackTitle = true});
+      {super.key, this.title = '', this.radius = 12, this.showFallbackTitle = true, this.decodeWidth, this.aspectRatio = 9 / 16});
+
+  /// memCacheWidth in px (decode thumbnails small on low-end phones).
+  final int? decodeWidth;
+  final double aspectRatio;
   final String url;
   final String title;
   final double radius;
@@ -17,7 +21,7 @@ class CoverImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AspectRatio(
-      aspectRatio: 9 / 16,
+      aspectRatio: aspectRatio,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),
         child: url.isEmpty
@@ -25,6 +29,7 @@ class CoverImage extends StatelessWidget {
             : CachedNetworkImage(
                 imageUrl: url,
                 fit: BoxFit.cover,
+                memCacheWidth: decodeWidth,
                 placeholder: (_, __) => Container(color: AppColors.surfaceHigh),
                 errorWidget: (_, __, ___) => CoverFallback(title: title, showTitle: showFallbackTitle),
               ),

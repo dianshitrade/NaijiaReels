@@ -35,3 +35,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # v20 eagle (read-only reuse of the launcher icon, 96px) for the Theater avatar
+    - android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png

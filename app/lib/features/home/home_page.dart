@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../rewards/rewards_page.dart';
 import '../shell/tab_placeholders.dart';
-import 'discover_page.dart';
+import '../theater/theater_page.dart';
 import 'home_feed_page.dart';
 
 /// Main shell: Home / Theater / Shop / Rewards / Me.
@@ -21,7 +21,7 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       body: IndexedStack(index: _tab, children: [
         HomeFeedPage(active: _tab == 0, onOpenRewards: () => setState(() => _tab = 3)),
-        const DiscoverPage(), // Theater (interim: existing catalog until the Theater page lands)
+        const TheaterPage(),
         const ShopPlaceholder(),
         const RewardsPage(),
         const MePlaceholder(),

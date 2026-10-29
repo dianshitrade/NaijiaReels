@@ -108,6 +108,28 @@ class TopComment {
   }
 }
 
+/// Contract `ChartItem`: Drama + rank (1-based) + rankChange (null = new entry).
+class ChartItem {
+  const ChartItem({required this.drama, required this.rank, this.rankChange});
+  final Drama drama;
+  final int rank;
+  final int? rankChange;
+}
+
+/// Contract `ComingSoonDrama`: Drama + releaseAt + reminder state.
+class ComingSoonDrama {
+  const ComingSoonDrama({
+    required this.drama,
+    required this.releaseAt,
+    this.reminderSet = false,
+    this.reminderCount = 0,
+  });
+  final Drama drama;
+  final DateTime releaseAt;
+  final bool reminderSet;
+  final int reminderCount;
+}
+
 /// Contract `FeedEpisode`.
 class FeedEpisode {
   const FeedEpisode({
