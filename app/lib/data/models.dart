@@ -9,8 +9,11 @@ class Drama {
     required this.episodeCount,
     this.description,
     this.episodes = const [],
+    this.completed = false,
   });
 
+  /// All episodes released (API `status: completed` / `completed: true`).
+  final bool completed;
   final String id;
   final String title;
   final String coverUrl;
@@ -29,6 +32,10 @@ class Drama {
         episodes: ((j['episodes'] as List?) ?? const [])
             .map((e) => EpisodeItem.fromJson(e as Map<String, dynamic>))
             .toList(),
+        completed: j['completed'] == true ||
+            (j['status'] as String?)?.toLowerCase() == 'completed' ||
+            ((j['episodeCount'] as num?)?.toInt() ?? 0) > 0 &&
+                ((j['episodes'] as List?)?.length ?? 0) >= ((j['episodeCount'] as num?)?.toInt() ?? 0),
       );
 }
 

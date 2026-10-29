@@ -5,14 +5,14 @@ import 'package:integration_test/integration_test.dart';
 import 'package:naija_reels/features/player/episode_feed_page.dart';
 import 'package:naija_reels/main.dart' as app;
 
-/// TikTok-style player on the live API: loading poster, playing page,
+/// Hongguo-style player on the live API: loading poster, playing page,
 /// "See translation" picker + Yoruba. Prints `SHOT:name` for host screencap
 /// and QUALITY: lines (with the pool's [Quality] logs) for the upgrade proof.
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  testWidgets('tiktok player shots', (t) async {
+  testWidgets('hongguo player shots', (t) async {
     Future<void> wait(int ms) async {
       await t.runAsync(() => Future<void>.delayed(Duration(milliseconds: ms)));
       await t.pump(const Duration(milliseconds: 50));
@@ -36,7 +36,7 @@ void main() {
         'spinner=${find.byKey(const ValueKey('player-loading')).evaluate().isNotEmpty}');
     await wait(1500); // let the cover image decode (still before first frame)
     debugPrint('QUALITY: loading poster still=${poster.evaluate().isNotEmpty}');
-    await shot('tiktok_loading', settle: 300);
+    await shot('hongguo_loading', settle: 300);
 
     var ready = false;
     for (var i = 0; i < 450; i++) {
@@ -56,12 +56,12 @@ void main() {
     }
     expect(find.text('See translation'), findsOneWidget);
     expect(find.byKey(const ValueKey('player-subs')), findsNothing);
-    await shot('tiktok_playing');
+    await shot('hongguo_nosubs');
 
     await t.tap(find.byKey(const ValueKey('see-translation')).first);
     await wait(1500);
     expect(find.text('Yorùbá'), findsOneWidget);
-    await shot('tiktok_picker');
+    await shot('hongguo_picker');
     await t.tap(find.byKey(const ValueKey('subs-opt-yo')));
     await wait(800);
     expect(find.text('Translation: Yorùbá'), findsWidgets);
@@ -82,6 +82,47 @@ void main() {
     debugPrint('QUALITY: yo cue shown=${txt.evaluate().isNotEmpty} '
         'text="${txt.evaluate().isEmpty ? '' : t.widget<Text>(txt).data}" '
         'res=${prog().player.state.width}x${prog().player.state.height}');
-    await shot('tiktok_translation');
+    final info = find.byKey(const ValueKey('player-info'));
+    if (txt.evaluate().isNotEmpty) {
+      final sb = t.getRect(txt.first).bottom, it = t.getRect(info.first).top;
+      debugPrint('QUALITY: subtitle bottom=$sb info top=$it overlap=${sb > it}');
+      expect(sb <= it, isTrue);
+    }
+    expect(find.textContaining('All '), findsOneWidget);
+    expect(find.text('AI-generated content'), findsOneWidget);
+    await shot('hongguo_playing');
+
+    await t.tap(find.byKey(const ValueKey('synopsis-toggle')).first);
+    await wait(600);
+    expect(find.textContaining('Less'), findsWidgets);
+    if (txt.evaluate().isNotEmpty) {
+      final sb = t.getRect(txt.first).bottom, it = t.getRect(info.first).top;
+      debugPrint('QUALITY: expanded subtitle bottom=$sb info top=$it overlap=${sb > it}');
+    }
+    await shot('hongguo_synopsis');
+    await t.tap(find.byKey(const ValueKey('synopsis-toggle')).first);
+    await wait(400);
+
+    await t.tap(find.byKey(const ValueKey('episodes-button')).first);
+    await wait(2500);
+    expect(find.byKey(const ValueKey('episodes-panel')), findsOneWidget);
+    debugPrint('QUALITY: episodes panel locks=${find.byIcon(Icons.lock).evaluate().length}');
+    await shot('hongguo_episodes');
+    Navigator.of(t.element(find.byKey(const ValueKey('episodes-panel')))).pop();
+    await wait(800);
+
+    await t.tap(find.byKey(const ValueKey('player-fullscreen')).first);
+    await wait(600);
+    expect(find.byKey(const ValueKey('player-info')), findsNothing);
+    expect(find.byKey(const ValueKey('player-more')), findsNothing);
+    await shot('hongguo_fullscreen');
+    await t.tap(find.byKey(const ValueKey('exit-fullscreen')));
+    await wait(600);
+    expect(find.byKey(const ValueKey('player-info')), findsWidgets);
+
+    await t.tap(find.byKey(const ValueKey('player-more')));
+    await wait(1000);
+    expect(find.text('Playback speed'), findsOneWidget);
+    await shot('hongguo_menu');
   }, timeout: const Timeout(Duration(minutes: 8)));
 }
