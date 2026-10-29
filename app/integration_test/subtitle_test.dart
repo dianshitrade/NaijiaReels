@@ -32,6 +32,7 @@ void main() {
               subtitleViewConfiguration: playerSubtitleConfig((c.maxHeight - boxH) / 2)))),
             const PlayerChrome(title: 'Mama-in-Law Wahala', episodeNo: 1,
                 episodeTitle: 'Subtitle smoke', total: 2, index: 0),
+            PlayerSubtitleOverlay(player: p.player),
           ]);
         }),
       ),
@@ -52,15 +53,14 @@ void main() {
     await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 500)));
     await t.pump(const Duration(milliseconds: 100));
     await binding.takeScreenshot('player_subtitles');
-    final subFinder = find.text(sub.split('\n').first, findRichText: true);
-    final txt = find.byWidgetPredicate((w) => w is Text && (w.data ?? '').contains(p.player.state.subtitle.first.trim()));
+    final txt = find.byKey(const ValueKey('player-subtitle-text'));
     if (txt.evaluate().isNotEmpty) {
       final w = t.widget<Text>(txt.first);
-      final eff = w.textScaler?.scale(w.style?.fontSize ?? 0) ?? w.style?.fontSize;
       debugPrint('SUBS: screen=${t.view.physicalSize / t.view.devicePixelRatio} '
-          'fontSize=${w.style?.fontSize} effectiveFontSize=$eff size=${t.getSize(txt.first)}');
+          'fontSize=${w.style?.fontSize} effectiveFontSize=${(w.textScaler ?? TextScaler.noScaling).scale(w.style?.fontSize ?? 0)} '
+          'rect=${t.getRect(txt.first)}');
     } else {
-      debugPrint('SUBS: subtitle Text not found (${subFinder.evaluate().length})');
+      debugPrint('SUBS: subtitle Text not found');
     }
     expect(sub, isNotEmpty);
     expect(txt, findsWidgets);

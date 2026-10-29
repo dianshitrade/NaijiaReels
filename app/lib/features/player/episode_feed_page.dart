@@ -1,3 +1,4 @@
+import 'package:media_kit/media_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -212,35 +213,65 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
         total: _episodes.length,
         index: i,
       ),
+      // Own subtitle layer, bound only to this page's player.
+      if (pooled != null && st?.lockedPrice == null && st?.error == null)
+        PlayerSubtitleOverlay(key: ValueKey('subs-${pooled.url}'), player: pooled.player),
     ]);
   }
 }
 
-/// Subtitles: white, black outline, ~17sp, centered and wrapped, lifted
-/// above the PlayerChrome progress bar / title block (top ~ 170dp from the
-/// screen bottom) and kept clear of the right-hand action column.
+/// Subtitles: white, black outline, translucent black box, 17sp, centered and
+/// wrapped, lifted above the PlayerChrome progress bar / title block and kept
+/// clear of the right-hand action column. media_kit's built-in SubtitleView is
+/// disabled because it scales text by sqrt(area/1920x1080) (~1/3 on phones).
 const kSubtitleBottomFromScreen = 175.0;
+const kSubtitleStyle = TextStyle(
+  fontSize: 17,
+  height: 1.3,
+  color: Colors.white,
+  fontWeight: FontWeight.w600,
+  backgroundColor: Color(0x8C000000),
+  shadows: [
+    Shadow(color: Colors.black, blurRadius: 3, offset: Offset(1, 1)),
+    Shadow(color: Colors.black, blurRadius: 3, offset: Offset(-1, -1)),
+  ],
+);
+
 SubtitleViewConfiguration playerSubtitleConfig(double letterboxGap) =>
-    SubtitleViewConfiguration(
-      visible: true,
-      textAlign: TextAlign.center,
-      // media_kit scales subtitles by sqrt(area / 1920x1080) (~1/3 on a
-      // 360dp phone). Disable that so fontSize is real logical px (sp).
-      textScaler: TextScaler.noScaling,
-      style: const TextStyle(
-        fontSize: 17,
-        height: 1.3,
-        color: Colors.white,
-        fontWeight: FontWeight.w600,
-        backgroundColor: Color(0x8C000000),
-        shadows: [
-          Shadow(color: Colors.black, blurRadius: 3, offset: Offset(1, 1)),
-          Shadow(color: Colors.black, blurRadius: 3, offset: Offset(-1, -1)),
-        ],
+    const SubtitleViewConfiguration(visible: false);
+
+class PlayerSubtitleOverlay extends StatelessWidget {
+  const PlayerSubtitleOverlay({super.key, required this.player});
+  final Player player;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 24,
+      right: 76,
+      bottom: kSubtitleBottomFromScreen,
+      child: IgnorePointer(
+        child: StreamBuilder<List<String>>(
+          stream: player.stream.subtitle,
+          initialData: player.state.subtitle,
+          builder: (ctx, snap) {
+            final text = (snap.data ?? const [])
+                .map((l) => l.trim())
+                .where((l) => l.isNotEmpty)
+                .join('\n');
+            if (text.isEmpty) return const SizedBox.shrink();
+            return Text(text,
+                key: const ValueKey('player-subtitle-text'),
+                textAlign: TextAlign.center,
+                softWrap: true,
+                textScaler: TextScaler.noScaling,
+                style: kSubtitleStyle);
+          },
+        ),
       ),
-      padding: EdgeInsets.fromLTRB(
-          24, 0, 76, (kSubtitleBottomFromScreen - letterboxGap).clamp(24.0, 400.0)),
     );
+  }
+}
 
 /// Short-drama style overlay: bottom gradient, title, EP badge, side actions.
 class PlayerChrome extends StatelessWidget {
