@@ -51,11 +51,27 @@ void main() {
     await wait(1000);
     await t.tap(find.text('Theater').last);
     await wait(500);
-    for (var i = 0; i < 150 && find.text('Trending').evaluate().isEmpty; i++) {
+    for (var i = 0; i < 150 && find.byKey(const ValueKey('theater-grid')).evaluate().isEmpty; i++) {
       await wait(1000);
     }
+    debugPrint(
+        'THEATER: cards=${find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('theater-card-')).evaluate().length}');
+    await shot('hongguo_theater', settle: 6000);
+    await t.tap(find.byKey(const ValueKey('quick-charts')));
+    await wait(3000);
+    await shot('hongguo_theater_charts', settle: 3000);
+    await t.pageBack();
+    await wait(800);
+    await t.tap(find.byKey(const ValueKey('quick-coming-soon')));
+    await wait(2000);
+    await t.tap(find.byKey(const ValueKey('remind-dr_danfo')));
+    await wait(600);
+    debugPrint('THEATER: danfo count=${(t.widget<Text>(find.byKey(const ValueKey('coming-count-dr_danfo')))).data}');
+    await shot('hongguo_theater_coming_soon', settle: 2000);
+    await t.pageBack();
+    await wait(800);
     final poster = find.byKey(const ValueKey('first-frame-poster'));
-    GoRouter.of(t.element(find.text('Trending').first)).push('/drama/dr_mama/play?ep=0');
+    GoRouter.of(t.element(find.byKey(const ValueKey('theater-grid')).first)).push('/drama/dr_mama/play?ep=0');
     for (var i = 0; i < 100 && poster.evaluate().isEmpty; i++) {
       await wait(50);
     }

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:naija_reels/core/network/api_client.dart';
 import 'package:naija_reels/core/network/api_response.dart';
@@ -28,7 +29,7 @@ void main() {
     await binding.takeScreenshot('01_splash');
     await pumpUntil(t, find.text('Theater'));
     await t.tap(find.text('Theater').last); // catalog lives on the Theater tab
-    await pumpUntil(t, find.text('Trending'));
+    await pumpUntil(t, find.byKey(const ValueKey('theater-grid')));
     debugPrint('SMOKE: home loaded (guest login ok)');
     await t.pump(const Duration(seconds: 5)); // let covers load for screenshot
     await binding.takeScreenshot('02_home');
@@ -62,7 +63,15 @@ void main() {
     expect(w1.balanceCoins, 70);
 
     // UI: open the drama detail for a screenshot.
-    await t.tap(find.text(drama.title).first);
+    // Find the drama in the Theater grid; fall back to a route push if it is off-screen.
+    final card = find.byKey(ValueKey('theater-card-${drama.id}'));
+    if (card.hitTestable().evaluate().isNotEmpty) {
+      debugPrint('SMOKE: tap Theater card ${drama.id}');
+      await t.tap(card.first);
+    } else {
+      debugPrint('SMOKE: push /drama/${drama.id} (card not on screen)');
+      GoRouter.of(t.element(find.byKey(const ValueKey('theater-grid')))).push('/drama/${drama.id}');
+    }
     await t.pump(const Duration(seconds: 10));
     await binding.takeScreenshot('03_drama_detail_after_unlock');
     debugPrint('SMOKE: SCREEN detail');

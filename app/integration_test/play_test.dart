@@ -18,12 +18,12 @@ void main() {
     }
     await t.tap(find.text('Theater').last); // catalog lives on the Theater tab
     await t.pump(const Duration(milliseconds: 300));
-    for (var i = 0; i < 150 && find.text('Trending').evaluate().isEmpty; i++) {
+    for (var i = 0; i < 150 && find.byKey(const ValueKey('theater-grid')).evaluate().isEmpty; i++) {
       await t.pump(const Duration(seconds: 1));
     }
-    expect(find.text('Trending'), findsWidgets);
+    expect(find.byKey(const ValueKey('theater-grid')), findsWidgets);
     debugPrint('PLAY: home ok, opening /drama/dr_mama/play?ep=0');
-    GoRouter.of(t.element(find.text('Trending').first)).push('/drama/dr_mama/play?ep=0');
+    GoRouter.of(t.element(find.byKey(const ValueKey('theater-grid')).first)).push('/drama/dr_mama/play?ep=0');
     final poster = find.byKey(const ValueKey('first-frame-poster'));
     final err = find.byKey(const ValueKey('player-error'));
     var ok = false;
