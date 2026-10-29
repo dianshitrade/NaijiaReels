@@ -27,6 +27,11 @@ export function toDrama(d: DramaRow, mediaBaseUrl = '') {
   };
 }
 
+/** Sort dramas by release time (createdAt), newest first, without mutating the input. */
+export function newestFirst<T extends { createdAt: Date }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
 @Injectable()
 export class ContentService {
   constructor(
@@ -46,7 +51,8 @@ export class ContentService {
       take: 20,
     });
     const items = dramas.map((d) => this.drama(d));
-    return { banners: items.slice(0, 3), sections: [{ title: 'Trending', items }, { title: 'New Releases', items: [...items].reverse() }] };
+    const newReleases = newestFirst(dramas).map((d) => this.drama(d));
+    return { banners: items.slice(0, 3), sections: [{ title: 'Trending', items }, { title: 'New Releases', items: newReleases }] };
   }
 
   async list(tag: string | undefined, page: number, size: number) {
