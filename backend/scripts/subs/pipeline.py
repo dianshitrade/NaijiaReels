@@ -164,7 +164,8 @@ def main():
     ap.add_argument("--src-dir", default="/workspace/naija-drama")
     ap.add_argument("--provider", default="manual", choices=PROVIDERS)
     ap.add_argument("--transcode", action="store_true", help="re-encode epNN_final.mp4 (or --video) to HLS")
-    ap.add_argument("--video"); ap.add_argument("--en")
+    ap.add_argument("--video"); ap.add_argument("--en", help="source subtitle file")
+    ap.add_argument("--source-lang", default="en", choices=[c for c, _ in LANGS], help="language of the source file (e.g. pcm)")
     a = ap.parse_args()
     nn = f"ep{a.ep:02d}"
     src = os.path.join(a.src_dir, nn)
@@ -180,8 +181,9 @@ def main():
     cues = parse_subs(en)
     src_texts = [c[2] for c in cues]
     tdir = os.path.join(HERE, "translations", nn)
-    texts = {"en": src_texts}
-    for code, _ in LANGS[1:]:
+    texts = {a.source_lang: src_texts}
+    for code, _ in LANGS:
+        if code == a.source_lang: continue
         t = PROVIDERS[a.provider](tdir, code, src_texts)
         if len(t) != len(cues):
             sys.exit(f"{code}: {len(t)} lines != {len(cues)} cues")
@@ -197,7 +199,7 @@ def main():
     # review sheet
     os.makedirs(os.path.join(HERE, "review"), exist_ok=True)
     head = "| # | time | " + " | ".join(c for c, _ in LANGS) + " |"
-    rows = [f"# {nn} subtitle review ({a.slug})", "", f"Source: `{en}` · provider: `{a.provider}` · cues: {len(cues)}",
+    rows = [f"# {nn} subtitle review ({a.slug})", "", f"Source: `{en}` (lang `{a.source_lang}`, used as-is) · provider: `{a.provider}` · cues: {len(cues)}",
             "Lines marked ⚠ exceed 2×42 chars (2×18 for Chinese) after wrapping.", "", head, "|" + "---|" * (len(LANGS) + 2)]
     for i, (s, e, _) in enumerate(cues):
         cells = []
