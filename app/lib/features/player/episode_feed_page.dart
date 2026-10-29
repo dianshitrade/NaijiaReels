@@ -77,6 +77,9 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
       } else {
         st.error = e.message;
       }
+    } catch (e) {
+      // Timeouts / no network / Render cold start failures must be visible.
+      st.error = 'Network error: $e';
     } finally {
       st.loading = false;
     }
@@ -90,7 +93,16 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     if (i + 1 < _episodes.length) nextUrl = (await _resolve(i + 1)).url;
     if (!mounted || i != _index) return;
     if (cur.url != null) {
-      await _pool.focus(cur.url!, next: nextUrl);
+      // Don't await before building: on Android media_kit's open() waits for
+      // the Video texture, which only exists once the Video widget is mounted.
+      // Awaiting here deadlocked the page on the cover poster.
+      final f = _pool.focus(cur.url!, next: nextUrl);
+      if (mounted) setState(() {});
+      try {
+        await f;
+      } catch (e) {
+        debugPrint('[Play] focus error $e');
+      }
     } else {
       await _pool.pauseAll();
       if (nextUrl != null) await _pool.obtain(nextUrl);
@@ -139,6 +151,16 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
             : 'Unlock failed: ${e.message}'),
       ));
     }
+  }
+
+  Future<void> _retry(int i) async {
+    final st = _states[i];
+    if (st?.url != null) await _pool.remove(st!.url!);
+    _states.remove(i);
+    if (mounted) setState(() {});
+    await _resolve(i, force: true);
+    if (mounted) setState(() {});
+    if (mounted && i == _index) await _focus(i);
   }
 
   @override
@@ -225,7 +247,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
         ]),
       );
     } else if (st?.error != null) {
-      content = Center(child: Text('Error: ${st!.error}'));
+      content = PlayerErrorView(message: st!.error!, onRetry: () => _retry(i));
     } else if (pooled != null) {
       content = LayoutBuilder(builder: (ctx, c) {
         final boxH = (c.maxWidth * 16 / 9).clamp(0.0, c.maxHeight);
@@ -252,7 +274,8 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
       if (st?.lockedPrice == null && st?.error == null)
         FirstFramePoster(
           key: ValueKey('poster-${ep.id}'),
-          player: pooled?.player,
+          pooled: pooled,
+          onRetry: () => _retry(i),
           child: EpisodeCover(
             episodeCoverUrl: ep.coverUrl,
             dramaCoverUrl: _dramaCover,
@@ -294,23 +317,64 @@ const kSubtitleStyle = TextStyle(
 SubtitleViewConfiguration playerSubtitleConfig(double letterboxGap) =>
     const SubtitleViewConfiguration(visible: false);
 
-/// Shows [child] until [player] has a video size (first frame); null player
-/// (still resolving) keeps the poster.
+/// Shows [child] (cover) until [pooled] decodes a real frame (width>0 or
+/// position>0). If playback fails or times out, shows an error + Retry
+/// instead of leaving the cover up forever.
 class FirstFramePoster extends StatelessWidget {
-  const FirstFramePoster({super.key, required this.player, required this.child});
-  final Player? player;
+  const FirstFramePoster({super.key, required this.pooled, required this.child, required this.onRetry});
+  final PooledPlayer? pooled;
   final Widget child;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final p = player;
-    if (p == null) return IgnorePointer(child: child);
-    return StreamBuilder<int?>(
-      stream: p.stream.width,
-      initialData: p.state.width,
-      builder: (ctx, snap) => (snap.data ?? 0) > 0
-          ? const SizedBox.shrink()
-          : IgnorePointer(child: KeyedSubtree(key: const ValueKey('first-frame-poster'), child: child)),
+    final p = pooled;
+    final poster = IgnorePointer(child: KeyedSubtree(key: const ValueKey('first-frame-poster'), child: child));
+    if (p == null) return poster;
+    return ValueListenableBuilder<String?>(
+      valueListenable: p.failure,
+      builder: (ctx, fail, _) => fail != null
+          ? PlayerErrorView(message: fail, onRetry: onRetry)
+          : ValueListenableBuilder<bool>(
+              valueListenable: p.ready,
+              builder: (ctx, ready, _) => ready
+                  ? const SizedBox.shrink()
+                  : Stack(fit: StackFit.expand, children: [
+                      poster,
+                      const Center(child: CircularProgressIndicator()),
+                    ]),
+            ),
+    );
+  }
+}
+
+class PlayerErrorView extends StatelessWidget {
+  const PlayerErrorView({super.key, required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      key: const ValueKey('player-error'),
+      color: Colors.black,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.white70),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              key: const ValueKey('player-retry'),
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }

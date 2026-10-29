@@ -15,6 +15,58 @@ class PooledPlayer {
 
   final String url;
   final Player player;
+
+  /// True once a real frame is decoded (width>0 or position>0).
+  final ValueNotifier<bool> ready = ValueNotifier(false);
+
+  /// Non-null when playback failed (open error, mpv error with no frame,
+  /// or no first frame within [firstFrameTimeout]).
+  final ValueNotifier<String?> failure = ValueNotifier(null);
+  static Duration firstFrameTimeout = const Duration(seconds: 60);
+  final List<StreamSubscription<dynamic>> _subs = [];
+  Timer? _timeout;
+  Timer? _errGrace;
+  String? lastError;
+
+  void _markReady(String why) {
+    if (ready.value) return;
+    ready.value = true;
+    failure.value = null;
+    _timeout?.cancel();
+    _errGrace?.cancel();
+    debugPrint('[Play] ready ($why) ${_sw.elapsedMilliseconds}ms url=$url');
+  }
+
+  void _fail(String msg) {
+    if (ready.value || failure.value != null) return;
+    debugPrint('[Play] FAIL "$msg" state: playing=${player.state.playing} '
+        'buffering=${player.state.buffering} w=${player.state.width} '
+        'pos=${player.state.position} dur=${player.state.duration} url=$url');
+    failure.value = msg;
+  }
+
+  void _watchHealth() {
+    _subs.add(player.stream.width.listen((w) {
+      if ((w ?? 0) > 0) _markReady('width=$w');
+    }));
+    _subs.add(player.stream.position.listen((p) {
+      if (p > Duration.zero) _markReady('position=$p');
+    }));
+    _subs.add(player.stream.error.listen((e) {
+      debugPrint('[Play] mpv error: $e url=$url');
+      lastError = e;
+      _errGrace?.cancel();
+      _errGrace = Timer(const Duration(seconds: 10), () => _fail('Playback error: $e'));
+    }));
+    _subs.add(player.stream.log.listen((l) {
+      if (l.level == 'error' || l.level == 'fatal') {
+        debugPrint('[Play] mpv ${l.level} ${l.prefix}: ${l.text.trim()}');
+      }
+    }));
+    _timeout = Timer(firstFrameTimeout, () => _fail(lastError != null
+        ? 'Playback error: $lastError'
+        : 'Video took too long to start. Check your network and retry.'));
+  }
   late final VideoController controller;
   final Stopwatch _sw = Stopwatch();
   StreamSubscription<int?>? _firstFrameSub;
@@ -43,6 +95,7 @@ class PooledPlayer {
 
   Future<void> _open({required bool play}) async {
     _sw.start();
+    _watchHealth();
     _firstFrameSub = player.stream.width.listen((w) {
       if (w != null && w > 0 && firstFrame == null) {
         firstFrame = _sw.elapsed;
@@ -59,12 +112,23 @@ class PooledPlayer {
       await native.setProperty('sub-auto', 'fuzzy');
     }
     await player.setPlaylistMode(PlaylistMode.single);
-    await player.open(Media(url), play: play);
+    try {
+      await player.open(Media(url), play: play);
+      debugPrint('[Play] open returned ${_sw.elapsedMilliseconds}ms url=$url');
+    } catch (e) {
+      debugPrint('[Play] open threw $e url=$url');
+      _fail('Could not open video: $e');
+    }
   }
 
   Future<void> dispose() async {
     await _firstFrameSub?.cancel();
     await _tracksSub?.cancel();
+    _timeout?.cancel();
+    _errGrace?.cancel();
+    for (final x in _subs) {
+      await x.cancel();
+    }
     await player.dispose();
   }
 }
@@ -112,6 +176,12 @@ class PlayerPool {
   }
 
   PooledPlayer? get(String url) => _players[url];
+
+  /// Drop a (failed) player so the next obtain re-opens from scratch.
+  Future<void> remove(String url) async {
+    final p = _players.remove(url);
+    await p?.dispose();
+  }
 
   Future<void> pauseAll() async {
     for (final p in _players.values) {
