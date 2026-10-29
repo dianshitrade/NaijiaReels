@@ -39,10 +39,14 @@ void main() {
         'tabs=${['Home', 'Theater', 'Shop', 'Rewards', 'Me'].every((l) => find.text(l).evaluate().isNotEmpty)}');
     await wait(2500);
     await shot('hongguo_home');
+    await t.ensureVisible(find.byKey(const ValueKey('feed-tab-following')));
+    await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.byKey(const ValueKey('feed-tab-following')));
     await wait(2500);
     debugPrint('HOME: following empty=${find.byKey(const ValueKey('feed-empty')).evaluate().isNotEmpty}');
     await shot('hongguo_home_following', settle: 1500);
+    await t.ensureVisible(find.byKey(const ValueKey('feed-tab-for_you')));
+    await t.pump(const Duration(milliseconds: 300));
     await t.tap(find.byKey(const ValueKey('feed-tab-for_you')));
     await wait(1000);
     await t.tap(find.text('Theater').last);

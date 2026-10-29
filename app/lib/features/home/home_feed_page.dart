@@ -52,6 +52,12 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
   final Map<String, int> _likeCount = {};
   late final SubtitleSettings _subs = SubtitleSettings();
 
+  /// Serialises pool operations so a dispose never races an in-flight open.
+  Future<void> _ops = Future<void>.value();
+  Future<void> _serial(Future<void> Function() fn) => _ops = _ops.then((_) => fn()).catchError((Object e) {
+        debugPrint('[HomeFeed] pool op failed: $e');
+      });
+
   bool get _visible => widget.active && !_covered && mounted;
 
   @override
@@ -85,7 +91,7 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
     } else {
       // Free decoders for the page on top (player page has its own pool).
       _current = null;
-      unawaited(_pool.disposeAll());
+      unawaited(_serial(_pool.disposeAll));
       if (mounted) setState(() {});
     }
   }
@@ -94,12 +100,14 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
   void dispose() {
     routeObserver.unsubscribe(this);
     _page.dispose();
-    unawaited(_pool.disposeAll());
+    unawaited(_serial(_pool.disposeAll));
     _subs.dispose();
     super.dispose();
   }
 
-  Future<void> _focus(int i) async {
+  Future<void> _focus(int i) => _serial(() => _doFocus(i));
+
+  Future<void> _doFocus(int i) async {
     if (!_visible || i >= _items.length) return;
     final ep = _items[i].episode;
     final url = ep.hlsUrl;
@@ -128,7 +136,7 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
 
   void _setTab(int t) {
     if (t == _tab) return;
-    unawaited(_pool.disposeAll());
+    unawaited(_serial(_pool.disposeAll));
     setState(() {
       _tab = t;
       _items = const [];
@@ -260,7 +268,8 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
           key: ValueKey('feed-poster-${it.episode.id}'),
           pooled: pooled,
           onRetry: () async {
-            if (it.episode.hlsUrl != null) await _pool.remove(it.episode.hlsUrl!);
+            final u = it.episode.hlsUrl;
+            if (u != null) await _serial(() => _pool.remove(u));
             _focus(i);
           },
           message: pooled == null ? 'Loading…' : null,
