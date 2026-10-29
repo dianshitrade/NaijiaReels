@@ -11,9 +11,11 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../../shared/widgets/episode_cover.dart';
 import '../../shared/widgets/wallet_chip.dart';
+import 'subtitle_controls.dart';
 
 class _EpState {
   String? url;
+  List<SubtitleRef> subtitles = const [];
   int? lockedPrice;
   String? error;
   bool loading = false;
@@ -23,9 +25,12 @@ class _EpState {
 /// Locked episodes (403/40301) show an unlock dialog with priceCoins;
 /// coin unlock failing with 402/40201 shows "not enough coins".
 class EpisodeFeedPage extends ConsumerStatefulWidget {
-  const EpisodeFeedPage({super.key, required this.dramaId, this.initialIndex = 0});
+  const EpisodeFeedPage({super.key, required this.dramaId, this.initialIndex = 0, this.systemLocale});
   final String dramaId;
   final int initialIndex;
+
+  /// Test hook; defaults to the device locale.
+  final Locale Function()? systemLocale;
 
   @override
   ConsumerState<EpisodeFeedPage> createState() => _EpisodeFeedPageState();
@@ -58,8 +63,21 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
   void initState() {
     super.initState();
     _index = widget.initialIndex;
+    _subs = SubtitleSettings(systemLocale: widget.systemLocale);
+    _pool.subtitleLang = _subs.activeLang;
+    _subs.addListener(_onSubsChanged);
     _load();
   }
+
+  late final SubtitleSettings _subs;
+
+  void _onSubsChanged() {
+    if (!mounted) return;
+    setState(() {});
+    _pool.setSubtitleLang(_subs.activeLang);
+  }
+
+  void _pickSubs() => showSubtitlePicker(context, _subs);
 
   Future<void> _load() async {
     final d = await ref.read(dramaDetailProvider(widget.dramaId).future);
@@ -82,7 +100,9 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
       final info = await ref.read(repositoryProvider).play(_episodes[i].id);
       st
         ..url = info.hlsUrl
+        ..subtitles = info.subtitles
         ..lockedPrice = null;
+      _pool.subtitlesFor[info.hlsUrl] = info.subtitles;
     } on ApiException catch (e) {
       if (e.isLocked) {
         final data = e.data;
@@ -345,6 +365,8 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
 
   @override
   void dispose() {
+    _subs.removeListener(_onSubsChanged);
+    _subs.dispose();
     _pool.disposeAll();
     _page.dispose();
     super.dispose();
@@ -457,6 +479,10 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
         onComment: () => _showComments(i),
         onSave: () => _toggleSave(i),
         onShare: () => _share(i),
+        subtitleButton: Row(mainAxisSize: MainAxisSize.min, children: [
+          SubtitleMenuArrow(onPick: _pickSubs),
+          SubtitleButton(settings: _subs, onTap: _subs.toggle, onPick: _pickSubs),
+        ]),
       ),
       if (pooled != null && st?.lockedPrice == null && st?.error == null)
         Positioned(
@@ -467,7 +493,8 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
         ),
       // Own subtitle layer, bound only to this page's player.
       if (pooled != null && st?.lockedPrice == null && st?.error == null)
-        PlayerSubtitleOverlay(key: ValueKey('subs-${pooled.url}'), player: pooled.player),
+        PlayerSubtitleOverlay(
+            key: ValueKey('subs-${pooled.url}'), player: pooled.player, enabled: _subs.enabled),
     ]);
   }
 }
@@ -546,6 +573,7 @@ const kSubtitleStyle = TextStyle(
   color: Colors.white,
   fontWeight: FontWeight.w600,
   backgroundColor: Color(0x8C000000),
+  fontFamilyFallback: kSubtitleFontFallback,
   shadows: [
     Shadow(color: Colors.black, blurRadius: 3, offset: Offset(1, 1)),
     Shadow(color: Colors.black, blurRadius: 3, offset: Offset(-1, -1)),
@@ -629,11 +657,15 @@ class PlayerErrorView extends StatelessWidget {
 }
 
 class PlayerSubtitleOverlay extends StatelessWidget {
-  const PlayerSubtitleOverlay({super.key, required this.player});
+  const PlayerSubtitleOverlay({super.key, required this.player, this.enabled = true});
   final Player player;
+
+  /// When false nothing is drawn, even if a stale cue is still buffered.
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
+    if (!enabled) return const SizedBox.shrink();
     return Positioned(
       left: 24,
       right: 76,
@@ -678,7 +710,9 @@ class PlayerChrome extends StatelessWidget {
     this.onComment,
     this.onSave,
     this.onShare,
+    this.subtitleButton,
   });
+  final Widget? subtitleButton;
   final String title;
   final int episodeNo;
   final String episodeTitle;
@@ -733,7 +767,8 @@ class PlayerChrome extends StatelessWidget {
       Positioned(
         right: 8,
         bottom: 120,
-        child: Column(children: [
+        child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          if (subtitleButton != null) ...[subtitleButton!, const SizedBox(height: 14)],
           _ActionButton(
             key: const ValueKey('player-like'),
             icon: liked ? Icons.favorite : Icons.favorite_border,

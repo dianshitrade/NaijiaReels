@@ -47,4 +47,16 @@ class LocalStorage {
       (v == null || v.trim().isEmpty)
           ? _box?.delete(_kApiBase)
           : _box?.put(_kApiBase, v.trim());
+
+  static const _kSubsOn = 'subtitles_enabled';
+  static const _kSubsLang = 'subtitles_lang';
+
+  /// Subtitles are OFF unless the user turned them on.
+  static bool get subtitlesEnabled => _box?.get(_kSubsOn) as bool? ?? false;
+  static Future<void> setSubtitlesEnabled(bool v) async => _box?.put(_kSubsOn, v);
+
+  /// Manually chosen language; null = follow the system locale.
+  static String? get subtitleLang => _box?.get(_kSubsLang) as String?;
+  static Future<void> setSubtitleLang(String? v) async =>
+      v == null ? _box?.delete(_kSubsLang) : _box?.put(_kSubsLang, v);
 }

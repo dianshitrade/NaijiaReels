@@ -10,9 +10,9 @@ const url = 'https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/master
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  testWidgets('HLS subtitle track auto-selected and rendered', (t) async {
+  testWidgets('HLS English subtitle track selected and rendered', (t) async {
     MediaKit.ensureInitialized();
-    final pool = PlayerPool();
+    final pool = PlayerPool()..subtitleLang = 'en'; // subtitles are off by default
     // Don't await open before frames exist: on Android media_kit's open waits on
     // the video texture, which needs real frames. Start it, pump in real time.
     debugPrint('SUBS: opening $url');

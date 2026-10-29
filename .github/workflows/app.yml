@@ -60,6 +60,8 @@ jobs:
           fi
       - run: flutter analyze --no-fatal-infos
         timeout-minutes: 10
+      - name: No CJK text in app/lib code (comments allowed)
+        run: flutter test test/no_cjk_test.dart
       - run: flutter test
       - name: Build APKs (arm64 release + debug)
         env:
@@ -90,7 +92,7 @@ jobs:
   smoke:
     if: github.event_name == 'workflow_dispatch' && inputs.smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
       - name: Enable KVM
@@ -139,6 +141,11 @@ jobs:
           SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/subtitle_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/subtitle.log
           SRC=${PIPESTATUS[0]}
           [ "$RC" = 0 ] && RC=$SRC
+          adb logcat -c || true
+          SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 720 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/subs_shots_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/subs_shots.log
+          SSRC=${PIPESTATUS[0]}
+          adb logcat -d | grep -E 'SUBS:|\[Subs\]' > $OUT/subs_shots_logcat.txt || true
+          [ "$RC" = 0 ] && RC=$SSRC
           # flutter drive uninstalls the app afterwards; reinstall so the launcher shows our icon
           APK=$(ls build/app/outputs/flutter-apk/app-debug.apk 2>/dev/null) && adb install -r "$APK" || true
           sleep 3
@@ -160,7 +167,7 @@ jobs:
           profile: pixel_6
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: bash smoke.sh
-        timeout-minutes: 35
+        timeout-minutes: 55
       - uses: actions/upload-artifact@v4
         if: always()
         with:

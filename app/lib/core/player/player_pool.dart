@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../../data/models.dart';
 import 'subtitle_select.dart';
 
 /// One media_kit player bound to a source URL (HLS .m3u8 or MP4).
@@ -135,24 +136,70 @@ class PooledPlayer {
   StreamSubscription<int?>? _firstFrameSub;
   Duration? firstFrame;
   StreamSubscription<Tracks>? _tracksSub;
-  String? _pickedSubId;
 
-  /// Each player selects its own subtitle track whenever its track list
-  /// changes (initial open, re-open after unlock), so tracks never leak
-  /// between pooled episodes.
+  /// External WebVTT files from /play (fallback when HLS tracks are missing).
+  List<SubtitleRef> subtitles = const [];
+
+  /// Desired subtitle language for THIS player; null = subtitles off.
+  String? get subtitleLang => _subtitleLang;
+  String? _subtitleLang;
+  String? _applied; // 'off' | 'hls:<id>' | 'uri:<url>'
+  bool _tracksSeen = false;
+
+  /// What is currently applied (for tests/logs).
+  String? get appliedSubtitle => _applied;
+
+  Future<void> setSubtitleLang(String? lang) async {
+    _subtitleLang = lang;
+    await _applySubtitle();
+  }
+
+  /// Picks the HLS track for [subtitleLang]; if the player exposes none,
+  /// loads the matching `subtitles[].url` WebVTT via [SubtitleTrack.uri].
+  Future<void> _applySubtitle() async {
+    final lang = _subtitleLang;
+    final tracks = player.state.tracks.subtitle;
+    String key;
+    SubtitleTrack target;
+    if (lang == null) {
+      key = 'off';
+      target = SubtitleTrack.no();
+    } else {
+      final hls = pickSubtitleTrackForLang(tracks, lang);
+      final ext = subtitles.where((s) => s.lang == lang).firstOrNull;
+      if (hls != null) {
+        key = 'hls:${hls.id}';
+        target = hls;
+      } else if (ext != null && _tracksSeen) {
+        key = 'uri:${ext.url}';
+        target = SubtitleTrack.uri(ext.url, title: ext.label, language: lang);
+      } else {
+        return; // wait for the track list
+      }
+    }
+    if (_applied == key) return;
+    _applied = key;
+    debugPrint('[Subs] apply $key lang=$lang url=$url');
+    try {
+      await player.setSubtitleTrack(target);
+    } catch (e) {
+      debugPrint('[Subs] apply failed $e');
+      _applied = null;
+    }
+  }
+
+  /// Each player re-applies ITS OWN language whenever its track list changes
+  /// (initial open, re-open after unlock), so tracks never leak between
+  /// pooled episodes.
   void _watchSubtitles() {
     _tracksSub?.cancel();
-    _pickedSubId = null;
+    _applied = null;
     _tracksSub = player.stream.tracks.listen((tracks) async {
-      final pick = pickSubtitleTrack(tracks.subtitle);
-      final cur = player.state.track.subtitle;
+      _tracksSeen = true;
       debugPrint('[Subs] url=$url tracks.subtitle='
           '${tracks.subtitle.map((t) => '${t.id}/${t.language}/${t.title}').toList()} '
-          'current=${cur.id} pick=${pick?.id}/${pick?.language}');
-      if (pick == null || (cur.id == pick.id && _pickedSubId == pick.id)) return;
-      _pickedSubId = pick.id;
-      await player.setSubtitleTrack(pick);
-      debugPrint('[Subs] selected ${pick.id}/${pick.language} url=$url');
+          'want=$_subtitleLang applied=$_applied');
+      await _applySubtitle();
     });
   }
 
@@ -165,8 +212,8 @@ class PooledPlayer {
     await native.setProperty('cache-on-disk', 'no');
     // Prefer ~360p (master lists 1Mbps) until first frame, then upgrade.
     await native.setProperty('hls-bitrate', '1100000');
-    await native.setProperty('slang', 'en,eng');
-    await native.setProperty('sub-auto', 'fuzzy');
+    // Subtitles are off by default: never let mpv autoselect a track.
+    if (_subtitleLang == null) await native.setProperty('sid', 'no');
     debugPrint('[Play] startup props: cache=no hls-bitrate=1100000 url=$url');
   }
 
@@ -220,13 +267,30 @@ class PlayerPool {
   int get size => _players.length;
   bool contains(String url) => _players.containsKey(url);
 
+  /// Subtitle language applied to every player (null = off).
+  String? subtitleLang;
+
+  /// External VTT lists keyed by stream url (set before [focus]/[obtain]).
+  final Map<String, List<SubtitleRef>> subtitlesFor = {};
+
+  Future<void> setSubtitleLang(String? lang) async {
+    subtitleLang = lang;
+    for (final p in _players.values) {
+      await p.setSubtitleLang(lang);
+    }
+  }
+
   Future<PooledPlayer> obtain(String url, {bool play = false}) async {
     final existing = _players.remove(url);
     if (existing != null) {
       _players[url] = existing; // move to MRU
+      existing.subtitles = subtitlesFor[url] ?? existing.subtitles;
+      if (existing.subtitleLang != subtitleLang) await existing.setSubtitleLang(subtitleLang);
       return existing;
     }
-    final p = PooledPlayer._(url);
+    final p = PooledPlayer._(url)
+      ..subtitles = subtitlesFor[url] ?? const []
+      .._subtitleLang = subtitleLang;
     _players[url] = p;
     await _evict();
     await p._open(play: play);

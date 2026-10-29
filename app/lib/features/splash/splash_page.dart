@@ -83,7 +83,7 @@ class _SplashPageState extends State<SplashPage> {
                 key: Key('wakingHint'),
                 padding: EdgeInsets.all(16),
                 child: Text(
-                  'Waking up the server, this can take about 1 minute…\n服务器唤醒中，约需 1 分钟…',
+                  'Waking up the server, this can take about 1 minute…',
                   textAlign: TextAlign.center,
                 ),
               ),

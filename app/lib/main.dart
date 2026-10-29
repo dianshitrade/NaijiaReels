@@ -13,6 +13,9 @@ Future<void> main() async {
   runApp(const ProviderScope(child: NaijaReelsApp()));
 }
 
+/// Fixed app UI locale (subtitles follow the system locale separately).
+const kAppLocale = Locale('en');
+
 class NaijaReelsApp extends ConsumerWidget {
   const NaijaReelsApp({super.key});
 
@@ -21,6 +24,9 @@ class NaijaReelsApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'NaijaReels',
       debugShowCheckedModeBanner: false,
+      // UI is English-only and must not follow the system language.
+      locale: kAppLocale,
+      supportedLocales: const [kAppLocale],
       theme: AppTheme.dark,
       routerConfig: ref.watch(routerProvider),
     );

@@ -103,12 +103,39 @@ class Wallet {
       );
 }
 
+/// External WebVTT subtitle for an episode (fallback when HLS tracks are
+/// not exposed by the player).
+class SubtitleRef {
+  const SubtitleRef({required this.lang, required this.label, required this.url});
+  final String lang;
+  final String label;
+  final String url;
+
+  static SubtitleRef? tryParse(Object? o) {
+    if (o is! Map) return null;
+    final lang = o['lang'];
+    final url = o['url'];
+    if (lang is! String || lang.isEmpty || url is! String || url.isEmpty) return null;
+    final label = o['label'];
+    return SubtitleRef(lang: lang, label: label is String && label.isNotEmpty ? label : lang, url: Env.resolve(url));
+  }
+}
+
 class PlayInfo {
-  const PlayInfo(this.hlsUrl, this.expiresAt);
+  const PlayInfo(this.hlsUrl, this.expiresAt, {this.subtitles = const []});
   final String hlsUrl;
   final String? expiresAt;
-  factory PlayInfo.fromJson(Map<String, dynamic> j) =>
-      PlayInfo(j['hlsUrl'] as String, j['expiresAt'] as String?);
+
+  /// Empty when the API omits `subtitles` (older backend).
+  final List<SubtitleRef> subtitles;
+  factory PlayInfo.fromJson(Map<String, dynamic> j) => PlayInfo(
+        j['hlsUrl'] as String,
+        j['expiresAt'] as String?,
+        subtitles: ((j['subtitles'] as List?) ?? const [])
+            .map(SubtitleRef.tryParse)
+            .whereType<SubtitleRef>()
+            .toList(),
+      );
 }
 
 class UnlockResult {
