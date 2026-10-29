@@ -59,9 +59,9 @@ void main() {
     for (var i = 0; i < 6; i++) {
       await wait(t, 200);
     }
-    expect(find.text('coming soon'), findsOneWidget);
+    expect(find.byKey(const ValueKey('comments-sheet')), findsOneWidget);
     await binding.takeScreenshot('player_comments');
-    Navigator.of(t.element(find.text('coming soon'))).pop();
+    Navigator.of(t.element(find.byKey(const ValueKey('comments-sheet')))).pop();
     for (var i = 0; i < 6; i++) {
       await wait(t, 200);
     }
