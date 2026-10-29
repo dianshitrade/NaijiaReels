@@ -30,6 +30,7 @@ services:
       JWT_SECRET: dev-only-jwt-secret-change-me
       MEDIA_BASE_URL: http://localhost:8080/media
       MEDIA_SIGN_SECRET: dev-only-media-secret
+      SEED: "true"
     ports: ["3000:3000"]
     depends_on:
       pg: { condition: service_healthy }

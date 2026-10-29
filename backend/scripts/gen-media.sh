@@ -37,5 +37,6 @@ for d in "${DRAMAS[@]}"; do
 720p/index.m3u8
 M3U
   done
+  [ -f "$OUT/$slug/cover.jpg" ] || ffmpeg -loglevel error -y -i "$OUT/$slug/ep1/720p/seg_000.ts" -frames:v 1 -q:v 4 "$OUT/$slug/cover.jpg"
 done
 echo "media generated in $OUT"

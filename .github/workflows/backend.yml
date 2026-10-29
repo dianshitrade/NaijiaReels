@@ -28,6 +28,7 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma migrate deploy
+      - run: npm run seed
       - run: npm run lint
       - run: npm test
       - run: npm run build
@@ -49,6 +50,16 @@ jobs:
         run: |
           for i in $(seq 1 60); do curl -fsS localhost:3000/api/v1/health && break; sleep 2; done
           curl -fsS localhost:3000/api/v1/health
+      - name: D2 smoke (seeded data + signed HLS via nginx)
+        run: |
+          docker compose up -d nginx
+          curl -fsS localhost:3000/api/v1/dramas | grep -q 'Mama-in-Law Wahala'
+          TOKEN=$(curl -fsS -X POST localhost:3000/api/v1/auth/guest -H 'content-type: application/json' -d '{"deviceId":"ci-smoke-1"}' | jq -r .data.accessToken)
+          URL=$(curl -fsS localhost:3000/api/v1/episodes/dr_mama_ep1/play -H "Authorization: Bearer $TOKEN" | jq -r .data.hlsUrl)
+          echo "$URL"
+          for i in $(seq 1 15); do curl -fsS "$URL" && break; sleep 2; done
+          curl -fsS "$URL" | grep -q EXTM3U
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3000/api/v1/episodes/dr_mama_ep3/play -H "Authorization: Bearer $TOKEN")" = 403
       - name: mock check
         run: |
           for i in $(seq 1 60); do curl -fsS localhost:4010/api/v1/dramas && break; sleep 2; done

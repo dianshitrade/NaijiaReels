@@ -17,11 +17,14 @@ describe('App (e2e)', () => {
 
   beforeAll(async () => {
     Object.assign(process.env, {
+      ...{
       DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
       REDIS_URL: 'redis://localhost:6379',
       JWT_SECRET: '0123456789abcdef',
       MEDIA_BASE_URL: 'http://localhost:8080/media',
       MEDIA_SIGN_SECRET: 'secret123',
+      },
+      ...process.env,
     });
     const mod = await Test.createTestingModule({ imports: [AppModule], controllers: [BoomController] }).compile();
     app = mod.createNestApplication();
