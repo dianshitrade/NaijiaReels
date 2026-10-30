@@ -6,6 +6,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_response.dart';
+import '../../core/storage/local_storage.dart';
 
 import '../models.dart';
 import '../repository.dart';
@@ -333,10 +334,140 @@ class MockApi {
   }
 
   /// POST|DELETE /api/v1/episodes/{id}/like
-  Future<void> setLiked(String episodeId, bool liked) async => liked ? _liked.add(episodeId) : _liked.remove(episodeId);
+  /// [drama]/[episode] let GET /me/liked render the row (mock only).
+  Future<void> setLiked(String episodeId, bool liked, {Drama? drama, EpisodeItem? episode}) async {
+    if (liked) {
+      _liked.add(episodeId);
+      if (drama != null && episode != null) {
+        _likedInfo[episodeId] = (drama, episode, DateTime.now().toUtc());
+      }
+    } else {
+      _liked.remove(episodeId);
+      _likedInfo.remove(episodeId);
+    }
+  }
+
+  final Map<String, (Drama, EpisodeItem, DateTime)> _likedInfo = {};
+  final Map<String, DateTime> _savedAt = {'dr_mama': DateTime.utc(2026, 10, 28, 19)};
+  String _nickname = 'Chioma O.';
 
   /// POST|DELETE /api/v1/library (save drama)
-  Future<void> setSaved(String dramaId, bool saved) async => saved ? _saved.add(dramaId) : _saved.remove(dramaId);
+  Future<void> setSaved(String dramaId, bool saved) async {
+    if (saved) {
+      _saved.add(dramaId);
+      _savedAt.putIfAbsent(dramaId, () => DateTime.now().toUtc());
+    } else {
+      _saved.remove(dramaId);
+      _savedAt.remove(dramaId);
+    }
+  }
+
+  /// GET /api/v1/me (contract example values; likesCount = session likes on top of the example).
+  Future<MeProfile> me() async => MeProfile(
+        id: 'u_8f2k1',
+        nickname: _nickname,
+        avatarUrl: null, // contract example URL is not hosted yet -> initials avatar
+        guest: false,
+        followingCount: 12,
+        followersCount: 3,
+        likesCount: 58 + _liked.length,
+        balanceCoins: _balanceCoins,
+        vipUntil: null,
+      );
+
+  /// PATCH /api/v1/me {nickname}: 2-24 chars, else 40001 (contract).
+  Future<MeProfile> updateMe({required String nickname}) async {
+    final n = nickname.trim();
+    if (n.length < 2 || n.length > 24) throw ApiException(40001, 'Validation failed', status: 400);
+    _nickname = n;
+    return me();
+  }
+
+  /// POST /api/v1/history {episodeId, positionSec}. Mock: persisted locally in
+  /// Hive (one row per drama) so GET /me/history can be served offline.
+  Future<void> postHistory(Drama d, EpisodeItem ep, {int positionSec = 0}) async {
+    final released = d.episodes.isEmpty ? d.episodeCount : d.episodes.length;
+    final idx = d.episodes.indexWhere((e) => e.id == ep.id);
+    await LocalStorage.putWatchHistory(d.id, {
+      'dramaId': d.id,
+      'title': d.title,
+      'coverUrl': d.coverUrl,
+      'tags': d.tags,
+      'episodeCount': d.episodeCount,
+      'totalEpisodes': d.totalEpisodes,
+      'status': d.status,
+      'lastEpisodeId': ep.id,
+      'lastEpisodeNo': ep.episodeNo,
+      'lastIndex': idx < 0 ? 0 : idx,
+      'lastSeasonNumber': ep.seasonNumber,
+      'progressSec': positionSec,
+      // Reached the last released episode (no end-of-video signal yet).
+      'finished': idx >= 0 && idx == released - 1 && d.completed,
+      'updatedAt': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  /// GET /api/v1/me/history?status=all|finished|in_progress (newest first).
+  Future<List<MeHistoryItem>> meHistory({String status = 'all'}) async {
+    final rows = LocalStorage.watchHistory.values.map((r) {
+      final d = Drama(
+        id: r['dramaId'] as String,
+        title: r['title'] as String? ?? '',
+        coverUrl: r['coverUrl'] as String? ?? '',
+        tags: [for (final t in (r['tags'] as List? ?? const [])) '$t'],
+        episodeCount: (r['episodeCount'] as num?)?.toInt() ?? 0,
+        totalEpisodes: (r['totalEpisodes'] as num?)?.toInt(),
+        status: r['status'] as String? ?? 'ongoing',
+      );
+      return MeHistoryItem(
+        drama: d,
+        lastEpisodeId: r['lastEpisodeId'] as String,
+        lastEpisodeNo: (r['lastEpisodeNo'] as num).toInt(),
+        totalEpisodes: d.plannedEpisodes,
+        progressSec: (r['progressSec'] as num?)?.toInt() ?? 0,
+        finished: r['finished'] as bool? ?? false,
+        updatedAt: DateTime.parse(r['updatedAt'] as String),
+        lastSeasonNumber: (r['lastSeasonNumber'] as num?)?.toInt() ?? 1,
+      );
+    }).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return switch (status) {
+      'finished' => rows.where((h) => h.finished).toList(),
+      'in_progress' => rows.where((h) => !h.finished).toList(),
+      _ => rows,
+    };
+  }
+
+  /// GET /api/v1/me/saved (real dramas from /dramas, saved ids from the mock).
+  Future<List<SavedDrama>> meSaved() async {
+    if (_saved.isEmpty) return const [];
+    final hist = {for (final h in await meHistory()) h.drama.id: h.lastEpisodeNo};
+    final all = await _repo.dramas();
+    return [
+      for (final d in all)
+        if (_saved.contains(d.id))
+          SavedDrama(
+              drama: enrichDrama(d),
+              savedAt: _savedAt[d.id] ?? DateTime.now().toUtc(),
+              lastEpisodeNo: hist[d.id]),
+    ]..sort((a, b) => b.savedAt.compareTo(a.savedAt));
+  }
+
+  /// GET /api/v1/me/liked (episodes liked this session, newest first).
+  Future<List<LikedEpisode>> meLiked() async => [
+        for (final e in _likedInfo.entries)
+          LikedEpisode(
+              drama: e.value.$1,
+              episodeId: e.key,
+              episodeNo: e.value.$2.episodeNo,
+              coverUrl: e.value.$2.coverUrl,
+              seasonNumber: e.value.$2.seasonNumber,
+              likedAt: e.value.$3),
+      ]..sort((a, b) => b.likedAt.compareTo(a.likedAt));
+
+  /// GET /api/v1/me/reminders (coming-soon dramas with reminderSet).
+  Future<List<ComingSoonDrama>> meReminders() async =>
+      (await comingSoon()).where((c) => c.reminderSet).toList();
 
   /// POST|DELETE /api/v1/dramas/{id}/reminder
   /// Idempotent; returns the contract body `{dramaId, reminderSet, releaseAt}`.
@@ -669,6 +800,23 @@ final chartsProvider = FutureProvider.autoDispose
 /// GET /dramas/coming-soon
 final comingSoonProvider =
     FutureProvider.autoDispose<List<ComingSoonDrama>>((ref) => ref.watch(mockApiProvider).comingSoon());
+
+/// GET /me
+final meProvider = FutureProvider.autoDispose<MeProfile>((ref) => ref.watch(mockApiProvider).me());
+
+/// GET /me/history?status=
+final meHistoryProvider = FutureProvider.autoDispose
+    .family<List<MeHistoryItem>, String>((ref, status) => ref.watch(mockApiProvider).meHistory(status: status));
+
+/// GET /me/saved
+final meSavedProvider = FutureProvider.autoDispose<List<SavedDrama>>((ref) => ref.watch(mockApiProvider).meSaved());
+
+/// GET /me/liked
+final meLikedProvider = FutureProvider.autoDispose<List<LikedEpisode>>((ref) => ref.watch(mockApiProvider).meLiked());
+
+/// GET /me/reminders
+final meRemindersProvider =
+    FutureProvider.autoDispose<List<ComingSoonDrama>>((ref) => ref.watch(mockApiProvider).meReminders());
 
 /// GET /rewards/summary
 final rewardsSummaryProvider =

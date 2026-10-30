@@ -59,4 +59,31 @@ class LocalStorage {
   static String? get subtitleLang => _box?.get(_kSubsLang) as String?;
   static Future<void> setSubtitleLang(String? v) async =>
       v == null ? _box?.delete(_kSubsLang) : _box?.put(_kSubsLang, v);
+
+  static const _kHistory = 'watch_history_v1';
+  static final Map<String, Map<String, dynamic>> _memHistory = {};
+
+  /// Local watch history (one row per drama), written by the player.
+  static Map<String, Map<String, dynamic>> get watchHistory {
+    final raw = _box?.get(_kHistory);
+    if (raw is Map) {
+      return {
+        for (final e in raw.entries)
+          '${e.key}': Map<String, dynamic>.from(e.value as Map),
+      };
+    }
+    return {for (final e in _memHistory.entries) e.key: Map<String, dynamic>.from(e.value)};
+  }
+
+  static Future<void> putWatchHistory(String dramaId, Map<String, dynamic> row) async {
+    if (_box == null) {
+      _memHistory[dramaId] = row;
+      return;
+    }
+    final all = watchHistory..[dramaId] = row;
+    await _box!.put(_kHistory, all);
+  }
+
+  /// Tests only.
+  static void clearMemHistory() => _memHistory.clear();
 }

@@ -131,6 +131,8 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
       _completed = d.completed;
       _total = d.plannedEpisodes;
     });
+    _drama = d;
+    _recordHistory(_index);
     await _focus(_index);
   }
 
@@ -267,7 +269,22 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
     }
   }
 
+  Drama? _drama;
+
+  /// Watch history: local Hive row per drama (mock of POST /history).
+  void _recordHistory(int i) {
+    final d = _drama;
+    if (d == null || i < 0 || i >= _episodes.length) return;
+    unawaited(ref.read(mockApiProvider).postHistory(d, _episodes[i]).catchError((Object e) {
+      debugPrint('[Play] history write failed: $e');
+    }));
+  }
+
   void _toggleLike(int i) {
+    final d = _drama;
+    if (d != null) {
+      unawaited(ref.read(mockApiProvider).setLiked(_episodes[i].id, !(_liked[i] ?? false), drama: d, episode: _episodes[i]));
+    }
     setState(() {
       final next = !(_liked[i] ?? false);
       _liked[i] = next;
@@ -295,6 +312,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
   void _toggleSave(int i) {
     setState(() => _saved[i] = !(_saved[i] ?? false));
     final on = _saved[i] ?? false;
+    unawaited(ref.read(mockApiProvider).setSaved(widget.dramaId, on));
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content:
           Text(on ? 'Saved to watchlist (local)' : 'Removed from watchlist'),
@@ -518,6 +536,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
             itemCount: _episodes.length,
             onPageChanged: (i) {
               _index = i;
+              _recordHistory(i);
               _focus(i);
             },
             itemBuilder: (_, i) => _buildPage(i),

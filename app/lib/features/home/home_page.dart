@@ -2,7 +2,7 @@ import '../shop/shop_page.dart';
 import 'package:flutter/material.dart';
 
 import '../rewards/rewards_page.dart';
-import '../shell/tab_placeholders.dart';
+import '../me/me_page.dart';
 import '../theater/theater_page.dart';
 import 'home_feed_page.dart';
 
@@ -25,7 +25,11 @@ class _HomePageState extends State<HomePage> {
         const TheaterPage(),
         const ShopPage(),
         const RewardsPage(),
-        const MePlaceholder(),
+        MePage(
+          active: _tab == 4,
+          onOpenShop: () => setState(() => _tab = 2),
+          onOpenRewards: () => setState(() => _tab = 3),
+        ),
       ]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,

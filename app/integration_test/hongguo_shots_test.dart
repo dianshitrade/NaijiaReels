@@ -185,5 +185,19 @@ void main() {
     await wait(1000);
     expect(find.text('Playback speed'), findsOneWidget);
     await shot('hongguo_menu');
+
+    // --- Me: History grid now has the drama we just watched (local Hive) ---
+    Navigator.of(t.element(find.text('Playback speed'))).pop();
+    await wait(800);
+    GoRouter.of(t.element(find.byType(PlayerProgress).first)).pop();
+    await wait(1200);
+    await t.tap(find.text('Me').last);
+    for (var i = 0; i < 40 && find.byKey(const ValueKey('me-grid-history')).evaluate().isEmpty; i++) {
+      await wait(250);
+    }
+    debugPrint('ME: nickname=${find.byKey(const ValueKey('me-nickname')).evaluate().isNotEmpty} '
+        'history=${find.byKey(const ValueKey('me-history-item-dr_mama')).evaluate().isNotEmpty}');
+    expect(find.byKey(const ValueKey('me-inbox')), findsOneWidget);
+    await shot('hongguo_me', settle: 2500);
   }, timeout: const Timeout(Duration(minutes: 8)));
 }

@@ -613,3 +613,75 @@ class RewardsSummary {
     );
   }
 }
+
+/// Contract `Me` (GET/PATCH /me).
+class MeProfile {
+  const MeProfile({
+    required this.id,
+    required this.nickname,
+    required this.guest,
+    required this.followingCount,
+    required this.followersCount,
+    required this.likesCount,
+    this.avatarUrl,
+    this.balanceCoins = 0,
+    this.vipUntil,
+  });
+  final String id;
+  final String nickname;
+  final String? avatarUrl;
+  final bool guest;
+  final int followingCount;
+  final int followersCount;
+  final int likesCount;
+  final int balanceCoins;
+  final DateTime? vipUntil;
+}
+
+/// Contract `MeHistoryItem` (GET /me/history).
+class MeHistoryItem {
+  const MeHistoryItem({
+    required this.drama,
+    required this.lastEpisodeId,
+    required this.lastEpisodeNo,
+    required this.totalEpisodes,
+    required this.progressSec,
+    required this.finished,
+    required this.updatedAt,
+    this.lastSeasonNumber = 1,
+  });
+  final Drama drama;
+  final String lastEpisodeId;
+  final int lastEpisodeNo;
+  final int totalEpisodes;
+  final int progressSec;
+  final bool finished;
+  final DateTime updatedAt;
+  final int lastSeasonNumber;
+}
+
+/// Contract `SavedDrama` (GET /me/saved).
+class SavedDrama {
+  const SavedDrama({required this.drama, required this.savedAt, this.lastEpisodeNo});
+  final Drama drama;
+  final DateTime savedAt;
+  final int? lastEpisodeNo;
+}
+
+/// Contract `LikedEpisode` (GET /me/liked).
+class LikedEpisode {
+  const LikedEpisode({
+    required this.drama,
+    required this.episodeId,
+    required this.episodeNo,
+    required this.likedAt,
+    this.coverUrl,
+    this.seasonNumber = 1,
+  });
+  final Drama drama;
+  final String episodeId;
+  final int episodeNo;
+  final String? coverUrl;
+  final int seasonNumber;
+  final DateTime likedAt;
+}
