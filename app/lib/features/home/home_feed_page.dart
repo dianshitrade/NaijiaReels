@@ -34,6 +34,9 @@ class HomeFeedPage extends ConsumerStatefulWidget {
   const HomeFeedPage({super.key, this.active = true, this.onOpenRewards});
   final bool active;
   final VoidCallback? onOpenRewards;
+
+  /// Test/diagnostic hook: (feed index, ms from focus to first advancing frame).
+  static final ValueNotifier<(int, int)?> debugPlaying = ValueNotifier(null);
   @override
   ConsumerState<HomeFeedPage> createState() => _HomeFeedPageState();
 }
@@ -147,8 +150,24 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
       }
     }
     // Synchronous: Video must mount right away (open() waits for its texture).
+    final sw = Stopwatch()..start();
     final p = _pool.activate(url, next: next);
     debugPrint('[HomeFeed] focus i=$i url=$url');
+    HomeFeedPage.debugPlaying.value = null;
+    void onReady() {
+      if (!p.ready.value) return;
+      p.ready.removeListener(onReady);
+      if (_current != p) return;
+      final pos = p.player.state.position.inMilliseconds;
+      debugPrint('[Autoplay] i=$i playing=${p.player.state.playing} pos=${pos}ms after ${sw.elapsedMilliseconds}ms');
+      HomeFeedPage.debugPlaying.value = (i, sw.elapsedMilliseconds);
+    }
+
+    if (p.ready.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => onReady());
+    } else {
+      p.ready.addListener(onReady);
+    }
     if (!mounted || _index != i || !_visible) return;
     setState(() {
       _current = p;

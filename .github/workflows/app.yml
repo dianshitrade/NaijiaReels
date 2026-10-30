@@ -163,6 +163,22 @@ jobs:
           adb logcat -d -v time > $OUT/hongguo_logcat.txt || true
           grep -E 'QUALITY:|\[Quality\]|\[Play\] (ready|startup)|first frame' $OUT/hongguo_logcat.txt > $OUT/quality_upgrade.log || true
           [ "$RC" = 0 ] && RC=$TRC
+          # fix1: autoplay / layout proof on a throttled link (1.5 Mbps, 300 ms)
+          adb emu network speed 1500:1500 > $OUT/fix1_throttle.txt 2>&1 || true
+          adb emu network delay 300 >> $OUT/fix1_throttle.txt 2>&1 || true
+          adb logcat -c || true
+          ( adb logcat -v raw -s flutter | while IFS= read -r l; do
+              case "$l" in *SHOT:*) n=$(echo "${l##*SHOT:}" | tr -dc 'a-z0-9_'); adb shell screencap -p /sdcard/$n.png </dev/null && adb pull /sdcard/$n.png "$OUT/$n.png" </dev/null;; esac
+            done ) &
+          WATCH=$!
+          SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/fix1_shots_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/fix1_shots.log
+          TRC=${PIPESTATUS[0]}
+          kill $WATCH 2>/dev/null || true
+          adb logcat -d -v time > $OUT/fix1_logcat.txt || true
+          grep -E 'FIX1:|\[Autoplay\]|\[HomeFeed\] focus|\[Play\] (ready|startup)' $OUT/fix1_logcat.txt > $OUT/fix1_autoplay.log || true
+          adb emu network speed full >/dev/null 2>&1 || true
+          adb emu network delay none >/dev/null 2>&1 || true
+          [ "$RC" = 0 ] && RC=$TRC
           # flutter drive uninstalls the app afterwards; reinstall so the launcher shows our icon
           APK=$(ls build/app/outputs/flutter-apk/app-debug.apk 2>/dev/null) && adb install -r "$APK" || true
           sleep 3
