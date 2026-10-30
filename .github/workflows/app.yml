@@ -1,0 +1,208 @@
+name: app
+
+on:
+  push:
+    branches: [main, 'feat/app-*']
+    paths: ['app/**', '.github/workflows/app.yml']
+  pull_request:
+    paths: ['app/**', '.github/workflows/app.yml']
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: 'API base baked into the APK (default https://naijareels-api.onrender.com)'
+        required: false
+        default: ''
+      smoke:
+        description: 'Run emulator smoke test against the API'
+        type: boolean
+        required: false
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Fill platform scaffolding (no overwrite)
+        run: flutter create --platforms android --org com.naijareels --project-name naija_reels .
+      - run: flutter pub get
+      - name: Setup release signing (if secrets present)
+        working-directory: app
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/naijareels-upload.jks
+            {
+              echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+              echo "keyPassword=$ANDROID_KEY_PASSWORD"
+              echo "keyAlias=$ANDROID_KEY_ALIAS"
+              echo "storeFile=../naijareels-upload.jks"
+            } > android/key.properties
+            echo "Release signing configured (alias=$ANDROID_KEY_ALIAS)"
+          else
+            echo "No signing secrets; release will fall back to debug signing"
+          fi
+      - run: flutter analyze --no-fatal-infos
+        timeout-minutes: 10
+      - name: No CJK text in app/lib code (comments allowed)
+        run: flutter test test/no_cjk_test.dart
+      - run: flutter test
+      - name: Build APKs (arm64 release + debug)
+        env:
+          API_BASE_URL: ${{ inputs.api_base_url || vars.API_BASE_URL }}
+        run: |
+          DEFINE=""
+          if [ -n "$API_BASE_URL" ]; then DEFINE="--dart-define=API_BASE_URL=$API_BASE_URL"; fi
+          echo "API_BASE_URL=${API_BASE_URL:-<default https://naijareels-api.onrender.com>}"
+          flutter build apk --release --target-platform android-arm64 $DEFINE
+          cp build/app/outputs/flutter-apk/app-release.apk NaijaReels-arm64-release.apk
+          flutter build apk --debug --target-platform android-arm64 $DEFINE
+          cp build/app/outputs/flutter-apk/app-debug.apk NaijaReels-arm64-debug.apk
+          ls -la *.apk
+      - name: Print release signing certificate
+        run: |
+          AS=$(ls -d $ANDROID_HOME/build-tools/*/ | sort -V | tail -1)apksigner
+          $AS verify --print-certs NaijaReels-arm64-release.apk | tee signing.txt
+          if grep -q 'CN=Android Debug' signing.txt; then echo '::warning::release APK is DEBUG-signed'; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: naijareels-arm64-release
+          path: app/NaijaReels-arm64-release.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: naijareels-arm64-debug
+          path: app/NaijaReels-arm64-debug.apk
+
+  smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Prepare app
+        working-directory: app
+        run: |
+          flutter create --platforms android --org com.naijareels --project-name naija_reels .
+          flutter pub get
+          curl -s -m 90 -o /dev/null -w 'warm-up health %{http_code} %{time_total}s\n' "${API:-https://naijareels-api.onrender.com}/api/v1/health" || true
+          mkdir -p ../smoke-out
+          cat > ../smoke.sh <<'SH'
+          set -x
+          cd app
+          OUT=../smoke-out
+          adb logcat -c || true
+          snap() { adb shell screencap -p /sdcard/s.png && adb pull /sdcard/s.png "$OUT/$1.png"; }
+          DEFINE=""
+          if [ -n "$API_BASE_URL" ]; then DEFINE="--dart-define=API_BASE_URL=$API_BASE_URL"; fi
+          SMOKE_OUT=$(cd $OUT && pwd) flutter drive --driver=test_driver/integration_test.dart --target=integration_test/smoke_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/smoke.log
+          RC=${PIPESTATUS[0]}
+          snap final || true
+          adb logcat -c || true
+          SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 420 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/play_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/play.log
+          PRC=${PIPESTATUS[0]}
+          adb logcat -d > $OUT/play_logcat.txt || true
+          grep -iE 'flutter|media_kit|mpv|exoplayer|Player|FlutterError|PLAY:' $OUT/play_logcat.txt > $OUT/play_fail.log || true
+          [ "$RC" = 0 ] && RC=$PRC
+          adb logcat -c || true
+          SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/play_ux_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/play_ux.log
+          URC=${PIPESTATUS[0]}
+          adb logcat -d > $OUT/play_ux_logcat.txt || true
+          grep -E 'UX:|\[Play\] (ready|startup|hls)|first frame|preload|Failed to create file cache' $OUT/play_ux_logcat.txt $OUT/play_ux.log > $OUT/play_ux_timing.txt || true
+          [ "$RC" = 0 ] && RC=$URC
+          curl -s -m 90 -o /dev/null -w 'warm-up media %{http_code}\n' https://naijareels-media.onrender.com/mama-in-law-wahala/ep1/master.m3u8 || true
+          SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/subtitle_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/subtitle.log
+          SRC=${PIPESTATUS[0]}
+          [ "$RC" = 0 ] && RC=$SRC
+          adb logcat -c || true
+          # screencap on SHOT:<name> lines printed by subs_shots_test
+          ( adb logcat -v raw -s flutter | while IFS= read -r l; do
+              case "$l" in *SHOT:*) n=$(echo "${l##*SHOT:}" | tr -dc 'a-z_'); adb shell screencap -p /sdcard/$n.png </dev/null && adb pull /sdcard/$n.png "$OUT/$n.png" </dev/null;; esac
+            done ) &
+          WATCH=$!
+          SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 720 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/subs_shots_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/subs_shots.log
+          SSRC=${PIPESTATUS[0]}
+          kill $WATCH 2>/dev/null || true
+          adb logcat -d | grep -E 'SUBS:|\[Subs\]' > $OUT/subs_shots_logcat.txt || true
+          [ "$RC" = 0 ] && RC=$SSRC
+          adb logcat -c || true
+          ( adb logcat -v raw -s flutter | while IFS= read -r l; do
+              case "$l" in *SHOT:*) n=$(echo "${l##*SHOT:}" | tr -dc 'a-z_'); adb shell screencap -p /sdcard/$n.png </dev/null && adb pull /sdcard/$n.png "$OUT/$n.png" </dev/null;; esac
+            done ) &
+          WATCH=$!
+          SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/hongguo_shots_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/hongguo_shots.log
+          TRC=${PIPESTATUS[0]}
+          kill $WATCH 2>/dev/null || true
+          adb logcat -d -v time > $OUT/hongguo_logcat.txt || true
+          grep -E 'QUALITY:|\[Quality\]|\[Play\] (ready|startup)|first frame' $OUT/hongguo_logcat.txt > $OUT/quality_upgrade.log || true
+          [ "$RC" = 0 ] && RC=$TRC
+          # fix1: autoplay / layout proof on a throttled link (1.5 Mbps, 300 ms)
+          adb emu network speed 1500:1500 > $OUT/fix1_throttle.txt 2>&1 || true
+          adb emu network delay 300 >> $OUT/fix1_throttle.txt 2>&1 || true
+          adb logcat -c || true
+          ( adb logcat -v raw -s flutter | while IFS= read -r l; do
+              case "$l" in *SHOT:*) n=$(echo "${l##*SHOT:}" | tr -dc 'a-z0-9_'); adb shell screencap -p /sdcard/$n.png </dev/null && adb pull /sdcard/$n.png "$OUT/$n.png" </dev/null;; esac
+            done ) &
+          WATCH=$!
+          SMOKE_OUT=$(cd $OUT && pwd) timeout -k 30 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/fix1_shots_test.dart -d emulator-5554 $DEFINE 2>&1 | tee $OUT/fix1_shots.log
+          TRC=${PIPESTATUS[0]}
+          kill $WATCH 2>/dev/null || true
+          adb logcat -d -v time > $OUT/fix1_logcat.txt || true
+          grep -E 'FIX1:|\[Autoplay\]|\[HomeFeed\] focus|\[Play\] (ready|startup)' $OUT/fix1_logcat.txt > $OUT/fix1_autoplay.log || true
+          adb emu network speed full >/dev/null 2>&1 || true
+          adb emu network delay none >/dev/null 2>&1 || true
+          [ "$RC" = 0 ] && RC=$TRC
+          # flutter drive uninstalls the app afterwards; reinstall so the launcher shows our icon
+          APK=$(ls build/app/outputs/flutter-apk/app-debug.apk 2>/dev/null) && adb install -r "$APK" || true
+          sleep 3
+          adb shell input keyevent KEYCODE_HOME; sleep 3; snap launcher_home || true
+          adb shell input swipe 540 2000 540 400 300; sleep 3; snap launcher_drawer || true
+          adb shell cmd package resolve-activity --brief com.naijareels.app > $OUT/launcher_resolve.txt 2>&1 || true
+          adb logcat -d > $OUT/logcat.txt || true
+          exit $RC
+          SH
+      - name: Run smoke on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          API_BASE_URL: ${{ inputs.api_base_url || vars.API_BASE_URL }}
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: bash smoke.sh
+        timeout-minutes: 55
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-screenshots-and-logs
+          path: smoke-out/
