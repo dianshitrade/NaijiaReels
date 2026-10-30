@@ -40,8 +40,10 @@ void main() {
       return -1;
     }
 
-    void rects(String page, String subKey, String infoKey) {
-      final s = find.byKey(ValueKey(subKey)), i = find.byKey(ValueKey(infoKey));
+    void rects(String page, String? scopeKey, String infoKey) {
+      final text = find.byKey(const ValueKey('player-subtitle-text'));
+      final s = scopeKey == null ? text : find.descendant(of: find.byKey(ValueKey(scopeKey)), matching: text);
+      final i = find.byKey(ValueKey(infoKey));
       if (s.evaluate().isEmpty || i.evaluate().isEmpty) {
         log('$page rect missing sub=${s.evaluate().length} info=${i.evaluate().length}');
         return;
@@ -57,7 +59,6 @@ void main() {
     await shot('fix1_first_screen', settle: 300);
     final a1 = await autoplay(0, 'initial');
     await shot('fix1_home_item1_autoplay', settle: 1500);
-    rects('home', 'feed-subtitle', 'feed-info');
     final tabs = t.getRect(find.byKey(const ValueKey('feed-tabs-scroll')));
     final sel = t.getRect(find.byKey(const ValueKey('feed-tab-for_you')));
     log('tabs viewport=$tabs selected=$sel inside=${sel.left >= tabs.left && sel.right <= tabs.right}');
@@ -111,7 +112,7 @@ void main() {
     for (var i = 0; i < 60 && txt.evaluate().isEmpty; i++) {
       await wait(250);
     }
-    rects('player', 'player-subtitle-text', 'player-info');
+    rects('player', null, 'player-info');
     await shot('fix1_player_subtitle', settle: 800);
 
     await t.tap(find.byKey(const ValueKey('episodes-button')).first);
@@ -124,6 +125,18 @@ void main() {
         'tile1=${tiles.evaluate().isEmpty ? '-' : t.getRect(tiles.first)}');
     await shot('fix1_episodes_panel', settle: 1500);
     expect(tiles.evaluate().length, greaterThan(0));
+    Navigator.of(t.element(panel)).pop();
+    await wait(800);
+    GoRouter.of(t.element(find.byType(PlayerProgress).first)).pop();
+    await wait(1000);
+    // Home with Yoruba subtitles on (same global setting): measure a live cue.
+    final cue = find.descendant(
+        of: find.byKey(const ValueKey('feed-subtitle')), matching: find.byKey(const ValueKey('player-subtitle-text')));
+    for (var i = 0; i < 120 && cue.evaluate().isEmpty; i++) {
+      await wait(250);
+    }
+    rects('home', 'feed-subtitle', 'feed-info');
+    await shot('fix1_home_subtitle', settle: 300);
     log('done');
   }, timeout: const Timeout(Duration(minutes: 8)));
 }

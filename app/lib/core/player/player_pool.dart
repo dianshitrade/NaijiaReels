@@ -296,12 +296,18 @@ class PooledPlayer {
       }
     });
     _watchSubtitles();
-    await _applyStartupProps();
-    await player.setPlaylistMode(PlaylistMode.single);
+    // Not awaited by callers, so the pool may dispose us mid-way (fast swipe):
+    // stop quietly instead of touching a disposed native player.
     try {
+      if (_disposed) return;
+      await _applyStartupProps();
+      if (_disposed) return;
+      await player.setPlaylistMode(PlaylistMode.single);
+      if (_disposed) return;
       await player.open(Media(url), play: play);
       debugPrint('[Play] open returned ${_sw.elapsedMilliseconds}ms url=$url');
     } catch (e) {
+      if (_disposed) return;
       debugPrint('[Play] open threw $e url=$url');
       _fail('Could not open video: $e');
     }
@@ -392,14 +398,19 @@ class PlayerPool {
 
   /// Makes [current] the only playing player, releases everything except
   /// [current]/[next], and preloads [next] once [current] shows a frame.
-  PooledPlayer activate(String current, {String? next}) {
+  ///
+  /// [previous] (the item just above) is kept if it is already alive, paused,
+  /// so swiping back resumes instantly instead of re-buffering; it is never
+  /// opened just for that.
+  PooledPlayer activate(String current, {String? next, String? previous}) {
     _currentUrl = current;
     _nextUrl = next == current ? null : next;
+    final keepPrev = previous != current && previous != _nextUrl ? previous : null;
     final cur = _ensure(current);
     debugPrint('[PlayerPool] activate cur=$current next=$_nextUrl');
     // Release out-of-range players immediately.
     for (final k in _players.keys.toList()) {
-      if (k != current && k != _nextUrl) {
+      if (k != current && k != _nextUrl && k != keepPrev) {
         final p = _players.remove(k);
         debugPrint('[PlayerPool] dispose $k');
         unawaited(p?.dispose());
@@ -427,7 +438,7 @@ class PlayerPool {
         preload();
       } else {
         void l() {
-          if (!cur.ready.value) return;
+          if (cur._disposed || !cur.ready.value) return;
           cur.ready.removeListener(l);
           preload();
         }
@@ -439,7 +450,8 @@ class PlayerPool {
   }
 
   /// Backwards-compatible async wrapper around [activate].
-  Future<PooledPlayer> focus(String current, {String? next}) async => activate(current, next: next);
+  Future<PooledPlayer> focus(String current, {String? next, String? previous}) async =>
+      activate(current, next: next, previous: previous);
 
   PooledPlayer? get(String url) => _players[url];
 

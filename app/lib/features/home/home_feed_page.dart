@@ -151,7 +151,8 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
     }
     // Synchronous: Video must mount right away (open() waits for its texture).
     final sw = Stopwatch()..start();
-    final p = _pool.activate(url, next: next);
+    final prev = i > 0 ? _items[i - 1].episode.hlsUrl : null;
+    final p = _pool.activate(url, next: next, previous: prev);
     debugPrint('[HomeFeed] focus i=$i url=$url');
     HomeFeedPage.debugPlaying.value = null;
     void onReady() {
@@ -328,6 +329,9 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
             _toggleLike(it, to: true);
           },
         ),
+      if (!_immersive) ...[
+        Positioned(left: 0, right: 0, bottom: 0, height: _infoBottom + _infoH + 120, child: const IgnorePointer(child: _BottomShade())),
+      ],
       if (pooled != null)
         PlayerSubtitleOverlay(
             key: const ValueKey('feed-subtitle'),
@@ -335,7 +339,6 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
             enabled: _subs.activeLang != null,
             bottom: _immersive ? 64 : subtitleBottomAbove(infoBottom: _infoBottom, infoHeight: _infoH)),
       if (!_immersive) ...[
-        Positioned(left: 0, right: 0, bottom: 0, height: _infoBottom + _infoH + 120, child: const IgnorePointer(child: _BottomShade())),
         Positioned(
           right: 6,
           top: MediaQuery.sizeOf(context).height * .3,
