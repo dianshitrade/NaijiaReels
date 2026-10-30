@@ -9,10 +9,10 @@ class InboxPage extends StatelessWidget {
   static const _tabs = ['All', 'Rewards', 'Updates', 'System'];
   static const _msgs = [
     ('Rewards', 'Check-in bonus ready', 'Claim today\'s +15 coins before midnight.', '09:12'),
-    ('Updates', 'New episodes dropped', 'My Village Husband is a Prince · EP 16–20 now live.', 'Yesterday'),
+    ('Updates', 'New episodes dropped', 'New episodes are live in Theater.', 'Yesterday'),
     ('Rewards', 'Welcome gift', '100 coins added to your wallet. Enjoy!', 'Mon'),
     ('System', 'Guest account created', 'Bind your phone to keep your coins safe.', 'Mon'),
-    ('Updates', 'Trending in Lagos', 'The Billionaire\'s Secret Wife is #1 this week.', 'Sun'),
+    ('Updates', 'Charts updated', 'See this week\'s top dramas in Theater.', 'Sun'),
   ];
 
   @override

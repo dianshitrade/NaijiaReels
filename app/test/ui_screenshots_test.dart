@@ -21,10 +21,10 @@ import 'package:naija_reels/shared/widgets/brand_logo.dart';
 import 'package:naija_reels/shared/widgets/cover_image.dart';
 import 'package:naija_reels/shared/widgets/episode_cover.dart';
 
+// Real backend titles only (GET /dramas), cycled for layout.
 const _titles = [
-  "The Billionaire's Secret Wife", 'Lagos Revenge', 'My Village Husband is a Prince',
-  'Royal Blood of Benin', 'CEO Daddy Returns', 'Love in Abuja', 'The Kidnapped Heiress',
-  'Family Secrets', 'Wedding Crasher', 'Okada Romance',
+  'Mama-in-Law Wahala', 'The Village Prince', 'Lagos Hustle', 'Mama-in-Law Wahala', 'The Village Prince',
+  'Lagos Hustle', 'Mama-in-Law Wahala', 'The Village Prince', 'Lagos Hustle', 'Mama-in-Law Wahala',
 ];
 const _tags = ['Romance', 'Revenge', 'Royal', 'Royal', 'CEO', 'Romance', 'Family', 'Family', 'Romance', 'Village'];
 

@@ -4,10 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:naija_reels/app/theme.dart';
 import 'package:naija_reels/core/network/api_response.dart';
 import 'package:naija_reels/data/mock/mock_api.dart';
+import 'package:naija_reels/data/models.dart';
 import 'package:naija_reels/data/repository.dart';
 import 'package:naija_reels/features/rewards/rewards_page.dart';
 
 class _NoRepo implements Repository {
+  @override
+  Future<List<Drama>> dramas({int page = 1, int size = 20}) async => const [
+        Drama(id: 'dr_mama', title: 'Mama-in-Law Wahala', coverUrl: '', tags: [], episodeCount: 6),
+      ];
   @override
   dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
 }
@@ -25,6 +30,8 @@ void main() {
     expect(s.bingeStreak!.taskId, 'binge:2026-10-30');
     expect(s.bingeStreak!.status, 'in_progress');
     expect(s.dramaCompletion.single.status, 'claimable');
+    expect(s.dramaCompletion.single.title, 'Finish Mama-in-Law Wahala');
+    expect(s.dramaCompletion.single.target, 6);
     expect(s.chests.map((c) => c.status), ['unlocking', 'locked']);
   });
 
@@ -68,7 +75,7 @@ void main() {
     expect(find.textContaining('Withdraw'), findsNothing);
     expect(find.textContaining('Oya, claim am!'), findsWidgets);
 
-    await t.tap(find.byKey(const ValueKey('claim-complete:dr_prince')));
+    await t.tap(find.byKey(const ValueKey('claim-complete:dr_mama')));
     await t.pump();
     await t.pump();
     expect(find.text('345'), findsOneWidget);

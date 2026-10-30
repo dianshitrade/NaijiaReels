@@ -3,6 +3,7 @@
 // None of these endpoints exist on the backend yet. Field names and sample
 // values are copied from the contract. Flip [kUseMocks] off once they ship;
 // every mocked call lives in this file only.
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_response.dart';
@@ -207,40 +208,9 @@ class MockApi {
   final Map<String, int> _reminderCount = {};
 
   /// GET /api/v1/dramas/coming-soon (ordered by releaseAt asc).
-  Future<List<ComingSoonDrama>> comingSoon() async {
-    ComingSoonDrama cs(String id, String title, List<String> tags, String desc, String at, bool set, int n) {
-      final on = _reminders.contains(id) || (set && !_reminderOff.contains(id));
-      return ComingSoonDrama(
-        drama: Drama(
-            id: id,
-            title: title,
-            coverUrl: '',
-            tags: tags,
-            episodeCount: 0,
-            description: desc,
-            heatCount: 0,
-            watchingCount: 0,
-            badge: 'new',
-            status: 'ongoing',
-            // Unreleased mock titles: no invented episode totals.
-            totalEpisodes: null),
-        releaseAt: DateTime.parse(at),
-        reminderSet: on,
-        reminderCount: _reminderCount[id] ?? n,
-      );
-    }
-
-    return [
-      // Contract example (cover not uploaded yet → branded fallback cover).
-      cs('dr_owambe', 'Owambe Queens', ['comedy', 'romance'], 'Aso-ebi rivalry at the biggest party in Surulere.',
-          '2026-11-14T18:00:00Z', true, 8120),
-      // Placeholder titles (mock only).
-      cs('dr_danfo', 'Danfo Driver Diaries', ['comedy', 'nollywood'], 'One bus, one driver, a hundred Lagos stories.',
-          '2026-11-21T18:00:00Z', false, 2310),
-      cs('dr_aso', 'Aso Rock Secrets', ['drama', 'thriller'], 'An intern stumbles on a secret that could shake Abuja.',
-          '2026-12-05T18:00:00Z', false, 1540),
-    ];
-  }
+  /// Backend has no coming-soon data yet (404) and we never invent dramas,
+  /// so the page shows its empty state.
+  Future<List<ComingSoonDrama>> comingSoon() async => const [];
 
   final Set<String> _reminderOff = {};
 
@@ -472,7 +442,7 @@ class MockApi {
   /// POST|DELETE /api/v1/dramas/{id}/reminder
   /// Idempotent; returns the contract body `{dramaId, reminderSet, releaseAt}`.
   Future<Map<String, Object?>> setReminder(String dramaId, bool on, {int? countBefore, DateTime? releaseAt}) async {
-    final was = _reminders.contains(dramaId) || (dramaId == 'dr_owambe' && !_reminderOff.contains(dramaId));
+    final was = _reminders.contains(dramaId) && !_reminderOff.contains(dramaId);
     if (on) {
       _reminders.add(dramaId);
       _reminderOff.remove(dramaId);
@@ -681,6 +651,12 @@ class MockApi {
   Future<RewardsSummary> rewardsSummary({DateTime? now}) async {
     final t = (now ?? DateTime.now()).toUtc();
     final today = _day(t);
+    var completionDramas = const <Drama>[];
+    try {
+      completionDramas = await _repo.dramas();
+    } catch (e) {
+      debugPrint('[Mock] rewards: /dramas failed, no completion task: $e');
+    }
     _claimable.clear();
     String st(String? id, String s) {
       if (id != null && _claimed.contains(id)) return 'claimed';
@@ -739,8 +715,10 @@ class MockApi {
         ]
       },
       'bingeStreak': task('binge:$today', 'Watch 10 episodes today', 30, bingeProgress, 10, null),
+      // Real dramas from GET /dramas only; coins and progress are mock.
       'dramaCompletion': [
-        task('complete:dr_prince', "Finish The Prince's Secret Bride", 100, 40, 40, 'dr_prince'),
+        for (final d in completionDramas.take(1))
+          task('complete:${d.id}', 'Finish ${d.title}', 100, d.plannedEpisodes, d.plannedEpisodes, d.id),
       ],
       'chests': [
         {

@@ -64,10 +64,8 @@ void main() {
     await wait(800);
     await t.tap(find.byKey(const ValueKey('quick-coming-soon')));
     await wait(2000);
-    await t.tap(find.byKey(const ValueKey('remind-dr_danfo')));
-    await wait(600);
-    debugPrint('THEATER: danfo count=${(t.widget<Text>(find.byKey(const ValueKey('coming-count-dr_danfo')))).data}');
-    await shot('hongguo_theater_coming_soon', settle: 2000);
+    expect(find.text('New dramas coming soon'), findsOneWidget);
+    await shot('hongguo_coming_soon', settle: 2000);
     await t.pageBack();
     await wait(800);
     // --- Shop ---

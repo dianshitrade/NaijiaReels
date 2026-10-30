@@ -496,59 +496,68 @@ class _ComingSoonPageState extends ConsumerState<ComingSoonPage> {
             error: (e, _) => Center(
                 child:
                     TextButton(onPressed: () => ref.invalidate(comingSoonProvider), child: const Text('Tap to retry'))),
-            data: (items) => ListView.separated(
-              padding: const EdgeInsets.all(12),
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 14),
-              itemBuilder: (_, i) {
-                final c = items[i];
-                final on = _on[c.drama.id] ?? c.reminderSet;
-                final n = _count[c.drama.id] ?? c.reminderCount;
-                return Row(
-                    key: ValueKey('coming-${c.drama.id}'),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                          width: 96,
-                          child: CoverImage(c.drama.coverUrl,
-                              title: c.drama.title, radius: 10, decodeWidth: (96 * dpr).round())),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(c.drama.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 4),
-                          Text('Premieres ${_date(c.releaseAt)}',
-                              style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 4),
-                          Text(c.drama.description ?? '',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: Colors.white70)),
-                          const SizedBox(height: 4),
-                          Text(
-                              [
-                                if (c.drama.plannedEpisodes > 0) '${c.drama.plannedEpisodes} EPs',
-                                '${compactCount(n)} want to watch'
-                              ].join(' · '),
-                              key: ValueKey('coming-count-${c.drama.id}'),
-                              style: const TextStyle(color: Colors.white54, fontSize: 12.5)),
-                          const SizedBox(height: 8),
-                          on
-                              ? OutlinedButton.icon(
-                                  key: ValueKey('remind-${c.drama.id}'),
-                                  onPressed: () => _toggle(c),
-                                  icon: const Icon(Icons.notifications_active, size: 18),
-                                  label: const Text('Reminder set'))
-                              : FilledButton.icon(
-                                  key: ValueKey('remind-${c.drama.id}'),
-                                  onPressed: () => _toggle(c),
-                                  icon: const Icon(Icons.notifications_none, size: 18),
-                                  label: const Text('Remind me')),
-                        ]),
-                      ),
-                    ]);
-              },
-            ),
+            data: (items) => items.isEmpty
+                ? const Center(
+                    key: ValueKey('coming-soon-empty'),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.movie_filter_outlined, size: 56, color: AppColors.primary),
+                      SizedBox(height: 12),
+                      Text('New dramas coming soon', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                    ]))
+                : ListView.separated(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 14),
+                    itemBuilder: (_, i) {
+                      final c = items[i];
+                      final on = _on[c.drama.id] ?? c.reminderSet;
+                      final n = _count[c.drama.id] ?? c.reminderCount;
+                      return Row(
+                          key: ValueKey('coming-${c.drama.id}'),
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                                width: 96,
+                                child: CoverImage(c.drama.coverUrl,
+                                    title: c.drama.title, radius: 10, decodeWidth: (96 * dpr).round())),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(c.drama.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 4),
+                                Text('Premieres ${_date(c.releaseAt)}',
+                                    style: const TextStyle(
+                                        color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 4),
+                                Text(c.drama.description ?? '',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(color: Colors.white70)),
+                                const SizedBox(height: 4),
+                                Text(
+                                    [
+                                      if (c.drama.plannedEpisodes > 0) '${c.drama.plannedEpisodes} EPs',
+                                      '${compactCount(n)} want to watch'
+                                    ].join(' · '),
+                                    key: ValueKey('coming-count-${c.drama.id}'),
+                                    style: const TextStyle(color: Colors.white54, fontSize: 12.5)),
+                                const SizedBox(height: 8),
+                                on
+                                    ? OutlinedButton.icon(
+                                        key: ValueKey('remind-${c.drama.id}'),
+                                        onPressed: () => _toggle(c),
+                                        icon: const Icon(Icons.notifications_active, size: 18),
+                                        label: const Text('Reminder set'))
+                                    : FilledButton.icon(
+                                        key: ValueKey('remind-${c.drama.id}'),
+                                        onPressed: () => _toggle(c),
+                                        icon: const Icon(Icons.notifications_none, size: 18),
+                                        label: const Text('Remind me')),
+                              ]),
+                            ),
+                          ]);
+                    },
+                  ),
           ),
     );
   }
