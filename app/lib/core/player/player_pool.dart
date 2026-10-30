@@ -50,7 +50,11 @@ class PooledPlayer {
     _playingFallback?.cancel();
     debugPrint('[Play] ready ($why) ${_sw.elapsedMilliseconds}ms url=$url');
     // After first frame at low HLS rung, allow 720p upgrade.
-    unawaited(_upgradeHlsBitrate());
+    // Delay the throughput probe so it doesn't fight the first seconds of
+    // playback for bandwidth on slow links.
+    Timer(const Duration(seconds: 8), () {
+      if (!_disposed && !_preloadBudget) unawaited(_upgradeHlsBitrate());
+    });
   }
 
   /// Adaptive quality: start on the lowest rung (fast first frame), then
@@ -104,21 +108,17 @@ class PooledPlayer {
 
   void _watchHealth() {
     // Seed from current state (events may have already fired).
-    if ((player.state.width ?? 0) > 0) _markReady('seed-width=${player.state.width}');
     if (player.state.position > Duration.zero) {
       _markReady('seed-position=${player.state.position}');
     }
-    _subs.add(player.stream.width.listen((w) {
-      if ((w ?? 0) > 0) _markReady('width=$w');
-    }));
+    // A width/height event means the decoder knows the format, not that a
+    // frame is on screen yet: hiding the poster then showed ~3 s of black.
+    // So "ready" = playback position advancing (the cover stays up until then).
     _subs.add(player.stream.height.listen((h) {
-      if ((h ?? 0) > 0) {
-        _markReady('height=$h');
-        debugPrint('[Quality] now ${player.state.width}x$h url=$url');
-      }
+      if ((h ?? 0) > 0) debugPrint('[Quality] now ${player.state.width}x$h url=$url');
     }));
     _subs.add(player.stream.position.listen((pos) {
-      if (pos > Duration.zero) _markReady('position=$pos');
+      if (pos > const Duration(milliseconds: 80)) _markReady('position=$pos');
     }));
     // NOTE: no "playing for 1s" fallback. mpv reports playing=true while it is
     // still waiting for the first HLS segment; dropping the poster then left a
@@ -135,9 +135,11 @@ class PooledPlayer {
         debugPrint('[Play] mpv ${l.level} ${l.prefix}: ${l.text.trim()}');
       }
     }));
-    _timeout = Timer(firstFrameTimeout, () => _fail(lastError != null
-        ? 'Playback error: $lastError'
-        : 'Video took too long to start. Check your network and retry.'));
+    _timeout = Timer(
+        firstFrameTimeout,
+        () => _fail(lastError != null
+            ? 'Playback error: $lastError'
+            : 'Video took too long to start. Check your network and retry.'));
   }
 
   late final VideoController controller;
@@ -244,7 +246,41 @@ class PooledPlayer {
     await native.setProperty('hls-bitrate', 'min');
     // Subtitles are off by default: never let mpv autoselect a track.
     if (_subtitleLang == null) await native.setProperty('sid', 'no');
+    if (_preloadBudget) {
+      // Preload = first few seconds only, so it never competes with playback.
+      await native.setProperty('demuxer-readahead-secs', '4');
+      await native.setProperty('demuxer-max-bytes', '${1536 * 1024}');
+    }
     debugPrint('[Play] startup props: cache=no hls-bitrate=min url=$url');
+  }
+
+  bool _openStarted = false;
+  bool _disposed = false;
+  bool _preloadBudget = false;
+
+  /// Starts [_open] once (not awaited: see [PlayerPool]).
+  void _startOpen({required bool play, required bool preload}) {
+    if (_openStarted) return;
+    _openStarted = true;
+    _preloadBudget = preload;
+    unawaited(_open(play: play));
+  }
+
+  /// Preloaded player became the visible one: lift the demuxer budget.
+  void _promote() {
+    if (!_preloadBudget) return;
+    _preloadBudget = false;
+    final native = player.platform;
+    if (native is NativePlayer && !_disposed) {
+      unawaited(native.setProperty('demuxer-readahead-secs', '30').catchError((_) {}));
+      unawaited(native.setProperty('demuxer-max-bytes', '${4 * 1024 * 1024}').catchError((_) {}));
+      debugPrint('[Play] promote (preload budget lifted) url=$url');
+      if (ready.value) {
+        Timer(const Duration(seconds: 8), () {
+          if (!_disposed) unawaited(_upgradeHlsBitrate());
+        });
+      }
+    }
   }
 
   Future<void> _open({required bool play}) async {
@@ -272,6 +308,8 @@ class PooledPlayer {
   }
 
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
     await _firstFrameSub?.cancel();
     await _tracksSub?.cancel();
     _fallbackTimer?.cancel();
@@ -287,16 +325,32 @@ class PooledPlayer {
   }
 }
 
-/// Keeps current + next episode loaded; never holds more than [maxPlayers].
-/// Least recently used players beyond the limit are disposed.
+/// Keeps ONLY the visible episode playing and the next one preloaded.
+///
+/// Root cause of the "stuck on first frame for 35 s" report: on Android
+/// media_kit's `open()` does not complete until the player's Video widget is
+/// mounted (it waits for the texture). The old [focus] awaited `open()` of the
+/// current AND of the (never mounted) next player before calling play(), and
+/// Home only mounted Video after focus returned, so everything waited for the
+/// texture timeout. Now activation is synchronous: the player object exists
+/// immediately (so the UI can mount Video at once), `open()` runs in the
+/// background, and the next item is preloaded only after the current one has
+/// its first frame, with a small demuxer budget so it can't starve playback.
 class PlayerPool {
-  PlayerPool({this.maxPlayers = 3});
+  PlayerPool({this.maxPlayers = 2});
 
+  /// Upper bound; in practice only {current, next} are kept.
   final int maxPlayers;
   final LinkedHashMap<String, PooledPlayer> _players = LinkedHashMap();
 
   int get size => _players.length;
   bool contains(String url) => _players.containsKey(url);
+  Iterable<String> get urls => _players.keys;
+
+  /// Url that should be playing (null = none).
+  String? get currentUrl => _currentUrl;
+  String? _currentUrl;
+  String? _nextUrl;
 
   /// Subtitle language applied to every player (null = off).
   String? subtitleLang;
@@ -311,44 +365,81 @@ class PlayerPool {
     }
   }
 
-  Future<PooledPlayer> obtain(String url, {bool play = false}) async {
+  PooledPlayer _ensure(String url) {
     final existing = _players.remove(url);
     if (existing != null) {
-      _players[url] = existing; // move to MRU
+      _players[url] = existing; // MRU
       existing.subtitles = subtitlesFor[url] ?? existing.subtitles;
-      if (existing.subtitleLang != subtitleLang) await existing.setSubtitleLang(subtitleLang);
+      if (existing.subtitleLang != subtitleLang) unawaited(existing.setSubtitleLang(subtitleLang));
       return existing;
     }
     final p = PooledPlayer._(url)
       ..subtitles = subtitlesFor[url] ?? const []
       .._subtitleLang = subtitleLang;
     _players[url] = p;
-    await _evict();
-    await p._open(play: play);
     return p;
   }
 
-  /// Activate [current] (play) and preload [next] (paused); pause others.
-  Future<PooledPlayer> focus(String current, {String? next}) async {
-    final cur = await obtain(current, play: true);
-    if (next != null) {
-      // Preload next while current plays — open paused so first swipe is warm.
-      debugPrint('[PlayerPool] preload next=$next');
-      await obtain(next);
+  /// Synchronously creates/looks up the player for [url]; opening runs in
+  /// the background (never awaited by callers that still have to mount Video).
+  PooledPlayer obtainNow(String url, {bool play = false}) {
+    final p = _ensure(url);
+    p._startOpen(play: play, preload: !play);
+    return p;
+  }
+
+  Future<PooledPlayer> obtain(String url, {bool play = false}) async => obtainNow(url, play: play);
+
+  /// Makes [current] the only playing player, releases everything except
+  /// [current]/[next], and preloads [next] once [current] shows a frame.
+  PooledPlayer activate(String current, {String? next}) {
+    _currentUrl = current;
+    _nextUrl = next == current ? null : next;
+    final cur = _ensure(current);
+    debugPrint('[PlayerPool] activate cur=$current next=$_nextUrl');
+    // Release out-of-range players immediately.
+    for (final k in _players.keys.toList()) {
+      if (k != current && k != _nextUrl) {
+        final p = _players.remove(k);
+        debugPrint('[PlayerPool] dispose $k');
+        unawaited(p?.dispose());
+      }
     }
-    // make sure current stays MRU
-    _players.remove(current);
-    _players[current] = cur;
-    await _evict();
     for (final p in _players.values) {
-      if (p.url == current) {
-        await p.player.play();
+      if (p.url != current) unawaited(p.player.pause());
+    }
+    cur._promote();
+    cur._startOpen(play: true, preload: false);
+    unawaited(cur.player.play());
+    final n = _nextUrl;
+    if (n != null) {
+      void preload() {
+        if (_currentUrl != current || _nextUrl != n) return;
+        debugPrint('[PlayerPool] preload next=$n');
+        final np = _ensure(n);
+        np._startOpen(play: false, preload: true);
+        // keep current MRU
+        _players.remove(current);
+        _players[current] = cur;
+      }
+
+      if (cur.ready.value) {
+        preload();
       } else {
-        await p.player.pause();
+        void l() {
+          if (!cur.ready.value) return;
+          cur.ready.removeListener(l);
+          preload();
+        }
+
+        cur.ready.addListener(l);
       }
     }
     return cur;
   }
+
+  /// Backwards-compatible async wrapper around [activate].
+  Future<PooledPlayer> focus(String current, {String? next}) async => activate(current, next: next);
 
   PooledPlayer? get(String url) => _players[url];
 
@@ -359,25 +450,20 @@ class PlayerPool {
   }
 
   Future<void> pauseAll() async {
+    _currentUrl = null;
     for (final p in _players.values) {
       await p.player.pause();
     }
   }
 
-  Future<void> _evict() async {
-    while (_players.length > maxPlayers) {
-      final oldestKey = _players.keys.first;
-      final p = _players.remove(oldestKey);
-      debugPrint('[PlayerPool] dispose $oldestKey');
-      await p?.dispose();
-    }
-  }
-
   Future<void> disposeAll() async {
-    for (final p in _players.values) {
+    _currentUrl = null;
+    _nextUrl = null;
+    final all = _players.values.toList();
+    _players.clear();
+    for (final p in all) {
       await p.dispose();
     }
-    _players.clear();
   }
 }
 
@@ -440,14 +526,15 @@ Future<String> _httpGet(String u, {int maxBytes = 1 << 20}) async {
 Future<List<HlsVariant>> fetchHlsVariants(String masterUrl) async =>
     parseHlsMaster(await _httpGet(masterUrl), masterUrl);
 
-/// Downloads (up to ~3 MB of) the first media segment of [variantUrl] and
+/// Downloads (up to ~768 KB of) the first media segment of [variantUrl] and
 /// returns bits per second.
 Future<int> measureThroughput(String variantUrl) async {
   final pl = await _httpGet(variantUrl);
   final base = Uri.parse(variantUrl);
-  final seg = pl.split(RegExp(r'\r?\n')).map((l) => l.trim()).firstWhere(
-      (l) => l.isNotEmpty && !l.startsWith('#'),
-      orElse: () => '');
+  final seg = pl
+      .split(RegExp(r'\r?\n'))
+      .map((l) => l.trim())
+      .firstWhere((l) => l.isNotEmpty && !l.startsWith('#'), orElse: () => '');
   if (seg.isEmpty) return 0;
   var u = base.resolve(seg);
   if (u.query.isEmpty && base.query.isNotEmpty) u = u.replace(query: base.query);
@@ -458,7 +545,7 @@ Future<int> measureThroughput(String variantUrl) async {
     final r = await (await c.getUrl(u)).close().timeout(const Duration(seconds: 15));
     await for (final chunk in r.timeout(const Duration(seconds: 15))) {
       n += chunk.length;
-      if (n > 3 << 20) break;
+      if (n > 768 << 10) break;
     }
   } finally {
     c.close(force: true);

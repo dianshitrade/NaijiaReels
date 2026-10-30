@@ -96,82 +96,84 @@ class EpisodeGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 3;
+    // A plain Wrap of fixed-size tiles: no shrink-wrapped GridView inside the
+    // sheet's scroll view (that rendered an empty panel on device).
     return LayoutBuilder(builder: (ctx, c) {
-      final tileW = (c.maxWidth - (columns - 1) * 8) / columns;
+      final maxW =
+          c.maxWidth.isFinite && c.maxWidth > 0 ? c.maxWidth : (MediaQuery.maybeOf(ctx)?.size.width ?? 360) - 32;
+      final tileW = ((maxW - (columns - 1) * 8) / columns).floorToDouble();
       final decodeW = (tileW * dpr).ceil().clamp(64, 400);
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: episodes.length,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: columns,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 9 / 16,
-        ),
-        itemBuilder: (_, i) {
-          final e = episodes[i];
-          return GestureDetector(
-            key: ValueKey('ep-tile-${e.episodeNo}'),
-            onTap: () => onTap(i),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Stack(fit: StackFit.expand, children: [
-                EpisodeCover(
-                  episodeCoverUrl: e.coverUrl,
-                  dramaCoverUrl: dramaCoverUrl,
-                  title: dramaTitle,
-                  showFallbackTitle: false,
-                  decodeWidth: decodeW,
-                  imageProviderOverride: imageProviderOverride,
+      Widget tile(int i) {
+        final e = episodes[i];
+        return GestureDetector(
+          key: ValueKey('ep-tile-${e.episodeNo}'),
+          onTap: () => onTap(i),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Stack(fit: StackFit.expand, children: [
+              EpisodeCover(
+                episodeCoverUrl: e.coverUrl,
+                dramaCoverUrl: dramaCoverUrl,
+                title: dramaTitle,
+                showFallbackTitle: false,
+                decodeWidth: decodeW,
+                imageProviderOverride: imageProviderOverride,
+              ),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x00000000), Color(0xB3000000)],
+                    stops: [0.45, 1],
+                  ),
                 ),
-                const DecoratedBox(
+              ),
+              if (currentIndex == i)
+                DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0x00000000), Color(0xB3000000)],
-                      stops: [0.45, 1],
-                    ),
+                    border: Border.all(color: AppColors.primary, width: 2),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                if (currentIndex == i)
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.primary, width: 2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 4,
+                child: Text('${e.episodeNo}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        color: Colors.white,
+                        shadows: [Shadow(color: Colors.black, blurRadius: 3)])),
+              ),
+              if (e.locked)
                 Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 4,
-                  child: Text('${e.episodeNo}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                          color: Colors.white,
-                          shadows: [Shadow(color: Colors.black, blurRadius: 3)])),
-                ),
-                if (e.locked)
-                  Positioned(
-                    top: 3,
-                    right: 3,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                      decoration: BoxDecoration(color: const Color(0xB3000000), borderRadius: BorderRadius.circular(6)),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.lock, size: 11, color: AppColors.gold),
-                        if (e.priceCoins > 0)
-                          Text(' ${e.priceCoins}', style: const TextStyle(fontSize: 9, color: AppColors.gold)),
-                      ]),
-                    ),
+                  top: 3,
+                  right: 3,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    decoration: BoxDecoration(color: const Color(0xB3000000), borderRadius: BorderRadius.circular(6)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.lock, size: 11, color: AppColors.gold),
+                      if (e.priceCoins > 0)
+                        Text(' ${e.priceCoins}', style: const TextStyle(fontSize: 9, color: AppColors.gold)),
+                    ]),
                   ),
-              ]),
-            ),
-          );
-        },
+                ),
+            ]),
+          ),
+        );
+      }
+
+      return Wrap(
+        key: const ValueKey('episode-grid'),
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (var i = 0; i < episodes.length; i++) SizedBox(width: tileW, height: tileW * 16 / 9, child: tile(i)),
+        ],
       );
     });
   }

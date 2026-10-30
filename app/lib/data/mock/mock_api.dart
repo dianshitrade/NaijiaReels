@@ -51,10 +51,49 @@ const Map<String, (int, int)> _epCounts = {'dr_mama_ep1': (2310, 148), 'dr_princ
 
 int _hash(String id) => id.codeUnits.fold<int>(7, (a, c) => (a * 31 + c) & 0x7fffffff);
 
+/// Drama id of an episode id like `dr_mama_ep2` (ids are `<drama>_ep<n>`).
+String dramaIdOfEpisode(String episodeId) {
+  final i = episodeId.lastIndexOf('_ep');
+  return i > 0 ? episodeId.substring(0, i) : episodeId;
+}
+
+/// Mock per-episode (likes, comments): ONE source for Home and the player.
+/// Deterministic per id: contract examples where they exist, otherwise the
+/// drama's EP1 base (contract example or id hash) decaying ~8% per episode,
+/// with comments ~6% of likes. No random or per-screen values.
+(int, int) mockEpisodeCounts(String episodeId, int episodeNo) {
+  final exact = _epCounts[episodeId];
+  if (exact != null) return exact;
+  final dramaId = dramaIdOfEpisode(episodeId);
+  double decay(int n) {
+    var f = 1.0;
+    for (var k = 1; k < n; k++) {
+      f *= 0.92;
+    }
+    return f;
+  }
+
+  // EP1 base: back-computed from any contract example of this drama, so the
+  // curve passes through it; otherwise from the id hash.
+  (double, double)? base;
+  for (final e in _epCounts.entries) {
+    if (dramaIdOfEpisode(e.key) != dramaId) continue;
+    final no = int.tryParse(e.key.substring(e.key.lastIndexOf('_ep') + 3)) ?? 1;
+    base = (e.value.$1 / decay(no), e.value.$2 / decay(no));
+    break;
+  }
+  base ??= () {
+    final likes = 800 + _hash(dramaId) % 4000;
+    return (likes.toDouble(), likes * 0.06);
+  }();
+  final f = decay(episodeNo < 1 ? 1 : episodeNo);
+  final jitter = 0.97 + (_hash(episodeId) % 7) / 100; // 0.97..1.03, stable
+  return ((base.$1 * f * jitter).round(), (base.$2 * f * jitter).round());
+}
+
 /// Fills Episode.seasonNumber/likeCount/commentCount (contract 449cef1).
 EpisodeItem enrichEpisode(EpisodeItem e) {
-  final c = _epCounts[e.id];
-  final h = _hash(e.id);
+  final c = mockEpisodeCounts(e.id, e.episodeNo);
   return EpisodeItem(
     id: e.id,
     episodeNo: e.episodeNo,
@@ -65,8 +104,8 @@ EpisodeItem enrichEpisode(EpisodeItem e) {
     durationSec: e.durationSec,
     coverUrl: e.coverUrl,
     seasonNumber: e.seasonNumber,
-    likeCount: e.likeCount ?? c?.$1 ?? 100 + h % 3000,
-    commentCount: e.commentCount ?? c?.$2 ?? 10 + h % 200,
+    likeCount: e.likeCount ?? c.$1,
+    commentCount: e.commentCount ?? c.$2,
   );
 }
 
@@ -417,9 +456,7 @@ class MockApi {
       for (final d in all)
         if (_saved.contains(d.id))
           SavedDrama(
-              drama: enrichDrama(d),
-              savedAt: _savedAt[d.id] ?? DateTime.now().toUtc(),
-              lastEpisodeNo: hist[d.id]),
+              drama: enrichDrama(d), savedAt: _savedAt[d.id] ?? DateTime.now().toUtc(), lastEpisodeNo: hist[d.id]),
     ]..sort((a, b) => b.savedAt.compareTo(a.savedAt));
   }
 
@@ -436,8 +473,7 @@ class MockApi {
       ]..sort((a, b) => b.likedAt.compareTo(a.likedAt));
 
   /// GET /api/v1/me/reminders (coming-soon dramas with reminderSet).
-  Future<List<ComingSoonDrama>> meReminders() async =>
-      (await comingSoon()).where((c) => c.reminderSet).toList();
+  Future<List<ComingSoonDrama>> meReminders() async => (await comingSoon()).where((c) => c.reminderSet).toList();
 
   /// POST|DELETE /api/v1/dramas/{id}/reminder
   /// Idempotent; returns the contract body `{dramaId, reminderSet, releaseAt}`.
