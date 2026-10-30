@@ -16,6 +16,7 @@ import '../../data/repository.dart';
 import '../../shared/widgets/ankara_pattern.dart';
 import '../../shared/widgets/comments_sheet.dart';
 import '../../shared/widgets/episode_cover.dart';
+import '../../shared/widgets/measure_size.dart';
 import '../player/episode_feed_page.dart';
 import '../player/subtitle_controls.dart';
 
@@ -47,6 +48,10 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
   bool _covered = false;
   bool _immersive = false;
   bool _paused = false;
+
+  /// Measured height of the bottom info block (title/tags/comment/translation).
+  double _infoH = 200;
+  static const double _infoBottom = 84;
   Offset? _heartAt;
   int _heartKey = 0;
   final Map<String, bool> _liked = {};
@@ -141,7 +146,9 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
         _pool.subtitlesFor[next!] = n.subtitles;
       }
     }
-    final p = await _pool.focus(url, next: next);
+    // Synchronous: Video must mount right away (open() waits for its texture).
+    final p = _pool.activate(url, next: next);
+    debugPrint('[HomeFeed] focus i=$i url=$url');
     if (!mounted || _index != i || !_visible) return;
     setState(() {
       _current = p;
@@ -201,7 +208,8 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
     final feed = ref.watch(feedProvider(tag));
     final top = MediaQuery.paddingOf(context).top;
     Widget body = feed.when(
-      loading: () => const PlayerLoadingView(message: 'Loading your feed…'),
+      // Never a bare black/loading screen: real /dramas cover + skeleton.
+      loading: () => const FeedPlaceholder(),
       error: (e, _) =>
           PlayerErrorView(message: 'Feed failed to load', onRetry: () => ref.invalidate(feedProvider(tag))),
       data: (items) {
@@ -232,14 +240,17 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
       backgroundColor: Colors.black,
       body: Stack(fit: StackFit.expand, children: [
         body,
-        if (!_immersive) Positioned(top: 0, left: 0, right: 0, child: _TopBar(top: top, tab: _tab, onTab: _setTab)),
+        if (!_immersive) Positioned(top: 0, left: 0, right: 0, child: FeedTopBar(top: top, tab: _tab, onTab: _setTab)),
       ]),
     );
   }
 
   Widget _card(FeedItem it, int i) {
     final focused = i == _index;
-    final pooled = focused ? _current : null;
+    final u = it.episode.hlsUrl;
+    // Focused card plays; the next card shows its preloaded (paused) player
+    // as soon as it is scrolled into view.
+    final pooled = focused ? _current : (u == null ? null : _pool.get(u));
     final d = it.drama;
     return Stack(key: ValueKey('feed-card-${d.id}'), fit: StackFit.expand, children: [
       if (pooled != null)
@@ -299,9 +310,13 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
           },
         ),
       if (pooled != null)
-        PlayerSubtitleOverlay(player: pooled.player, enabled: _subs.activeLang != null, bottom: _immersive ? 64 : 300),
+        PlayerSubtitleOverlay(
+            key: const ValueKey('feed-subtitle'),
+            player: pooled.player,
+            enabled: _subs.activeLang != null,
+            bottom: _immersive ? 64 : subtitleBottomAbove(infoBottom: _infoBottom, infoHeight: _infoH)),
       if (!_immersive) ...[
-        const Positioned(left: 0, right: 0, bottom: 0, height: 380, child: IgnorePointer(child: _BottomShade())),
+        Positioned(left: 0, right: 0, bottom: 0, height: _infoBottom + _infoH + 120, child: const IgnorePointer(child: _BottomShade())),
         Positioned(
           right: 6,
           top: MediaQuery.sizeOf(context).height * .3,
@@ -346,14 +361,20 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
         Positioned(
             left: 14,
             right: 84,
-            bottom: 84,
-            child: _Info(
+            bottom: _infoBottom,
+            child: MeasureSize(
+              key: const ValueKey('feed-info'),
+              onHeight: (h) {
+                if (mounted && (h - _infoH).abs() > 0.5) setState(() => _infoH = h);
+              },
+              child: _Info(
                 item: it,
                 onTitle: () => context.push(Routes.dramaDetail(d.id)),
                 onFullscreen: () => setState(() => _immersive = true),
                 subs: _subs,
                 onTranslate: () => showSubtitlePicker(context, _subs),
-                onComment: () => _showComments(it))),
+                onComment: () => _showComments(it)),
+            )),
       ] else
         Positioned(
           top: MediaQuery.paddingOf(context).top + 8,
@@ -370,7 +391,7 @@ class _HomeFeedPageState extends ConsumerState<HomeFeedPage> with RouteAware {
         bottom: 0,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (pooled != null) PlayerProgress(player: pooled.player),
-          if (!_immersive) _WatchFullBar(total: d.plannedEpisodes, onTap: () => _openFull(it)),
+          if (!_immersive) WatchFullBar(total: d.plannedEpisodes, onTap: () => _openFull(it)),
         ]),
       ),
     ]);
@@ -388,16 +409,51 @@ class _BottomShade extends StatelessWidget {
       );
 }
 
-class _TopBar extends StatelessWidget {
-  const _TopBar({required this.top, required this.tab, required this.onTab});
+/// Edge fade width of the category tabs; scroll padding equals it so a fully
+/// scrolled tab never sits under the fade.
+const double kTabFade = 16;
+
+class FeedTopBar extends StatefulWidget {
+  const FeedTopBar({super.key, required this.top, required this.tab, required this.onTab});
   final double top;
   final int tab;
   final ValueChanged<int> onTab;
 
   @override
+  State<FeedTopBar> createState() => FeedTopBarState();
+}
+
+class FeedTopBarState extends State<FeedTopBar> {
+  final _keys = [for (final _ in kFeedTabs) GlobalKey()];
+
+  @override
+  void initState() {
+    super.initState();
+    _reveal(animate: false);
+  }
+
+  @override
+  void didUpdateWidget(FeedTopBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tab != widget.tab) _reveal(animate: true);
+  }
+
+  /// Scrolls the selected tab fully into view (centered when possible) so it
+  /// is never clipped, on any screen width.
+  void _reveal({required bool animate}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final c = _keys[widget.tab].currentContext;
+      if (c == null || !mounted) return;
+      Scrollable.ensureVisible(c,
+          alignment: 0.5, duration: animate ? const Duration(milliseconds: 200) : Duration.zero);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final tab = widget.tab;
     return Container(
-      padding: EdgeInsets.only(top: top + 4, bottom: 8),
+      padding: EdgeInsets.only(top: widget.top + 4, bottom: 8),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
             begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x99000000), Colors.transparent]),
@@ -408,35 +464,52 @@ class _TopBar extends StatelessWidget {
             icon: const Icon(Icons.menu, color: Colors.white, size: 28),
             onPressed: () => context.push(Routes.dramas)),
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            reverse: true, // keep "For You" visible at the right edge
-            child: Row(children: [
-              for (var i = 0; i < kFeedTabs.length; i++)
-                GestureDetector(
-                  key: ValueKey('feed-tab-${kFeedTabs[i].$2}'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => onTab(i),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Text(kFeedTabs[i].$1,
-                          style: TextStyle(
-                              color: i == tab ? Colors.white : Colors.white60,
-                              fontSize: i == tab ? 19 : 17,
-                              fontWeight: i == tab ? FontWeight.w800 : FontWeight.w600,
-                              shadows: const [Shadow(color: Color(0x88000000), blurRadius: 4)])),
-                      const SizedBox(height: 4),
-                      Container(
-                          width: 18,
-                          height: 3,
-                          decoration: BoxDecoration(
-                              color: i == tab ? AppColors.primary : Colors.transparent,
-                              borderRadius: BorderRadius.circular(2))),
-                    ]),
+          // Soft fade at both edges: a tab scrolled partly out of view fades
+          // instead of showing a hard-cut fragment like "edy".
+          child: ShaderMask(
+            shaderCallback: (r) {
+              final f = r.width <= 0 ? 0.0 : (kTabFade / r.width).clamp(0.0, 0.3);
+              return LinearGradient(
+                colors: const [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
+                stops: [0, f, 1 - f, 1],
+              ).createShader(r);
+            },
+            blendMode: BlendMode.dstIn,
+            child: SingleChildScrollView(
+              key: const ValueKey('feed-tabs-scroll'),
+              scrollDirection: Axis.horizontal,
+              reverse: true, // "For You" (default) starts at the right edge
+              padding: const EdgeInsets.symmetric(horizontal: kTabFade),
+              child: Row(children: [
+                for (var i = 0; i < kFeedTabs.length; i++)
+                  GestureDetector(
+                    key: ValueKey('feed-tab-${kFeedTabs[i].$2}'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => widget.onTab(i),
+                    child: Padding(
+                      key: _keys[i],
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Text(kFeedTabs[i].$1,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                                color: i == tab ? Colors.white : Colors.white60,
+                                fontSize: i == tab ? 19 : 17,
+                                fontWeight: i == tab ? FontWeight.w800 : FontWeight.w600,
+                                shadows: const [Shadow(color: Color(0x88000000), blurRadius: 4)])),
+                        const SizedBox(height: 4),
+                        Container(
+                            width: 18,
+                            height: 3,
+                            decoration: BoxDecoration(
+                                color: i == tab ? AppColors.primary : Colors.transparent,
+                                borderRadius: BorderRadius.circular(2))),
+                      ]),
+                    ),
                   ),
-                ),
-            ]),
+              ]),
+            ),
           ),
         ),
         IconButton(
@@ -574,8 +647,8 @@ class _Info extends StatelessWidget {
   }
 }
 
-class _WatchFullBar extends StatelessWidget {
-  const _WatchFullBar({required this.total, required this.onTap});
+class WatchFullBar extends StatelessWidget {
+  const WatchFullBar({super.key, required this.total, required this.onTap});
   final int total;
   final VoidCallback onTap;
   @override
@@ -634,6 +707,45 @@ class _EmptyFeed extends StatelessWidget {
           ]),
         ),
       ),
+    ]);
+  }
+}
+
+/// First-screen / tab-switch placeholder: the first real /dramas cover with a
+/// skeleton of the info block (falls back to a plain skeleton), never black.
+class FeedPlaceholder extends ConsumerWidget {
+  const FeedPlaceholder({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final list = ref.watch(dramaListProvider).valueOrNull ?? const <Drama>[];
+    final cover = list.isEmpty ? null : list.first.coverUrl;
+    Widget bar(double w) => Container(
+        width: w,
+        height: 12,
+        margin: const EdgeInsets.only(top: 8),
+        decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(6)));
+    return Stack(key: const ValueKey('feed-placeholder'), fit: StackFit.expand, children: [
+      if (cover != null && cover.isNotEmpty)
+        EpisodeCover(dramaCoverUrl: cover, title: list.first.title, showFallbackTitle: false, decodeWidth: 720)
+      else
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF1E2A24), Color(0xFF101412)]),
+          ),
+        ),
+      const Positioned(left: 0, right: 0, bottom: 0, height: 360, child: _BottomShade()),
+      Positioned(
+        left: 14,
+        bottom: 150,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [bar(180), bar(120), bar(220)]),
+      ),
+      const Center(
+          child: SizedBox(
+              width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white70))),
     ]);
   }
 }

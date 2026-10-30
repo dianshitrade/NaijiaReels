@@ -17,6 +17,7 @@ import '../../data/models.dart';
 import '../../data/repository.dart';
 import '../../shared/widgets/comments_sheet.dart';
 import '../../shared/widgets/episode_cover.dart';
+import '../../shared/widgets/measure_size.dart';
 import '../rewards/rewards_page.dart';
 import 'subtitle_controls.dart';
 
@@ -75,6 +76,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
   final _saved = <int, bool>{};
   final _commentCount = <int, int>{};
   int _saveCount = 0;
+  double? _infoH; // measured player info block height
   bool _showPlayIcon = false;
   Offset? _heartAt;
   int _heartKey = 0;
@@ -338,40 +340,31 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF16181A),
-      builder: (ctx) => SafeArea(
-        child: ConstrainedBox(
-          key: const ValueKey('episodes-panel'),
-          constraints:
-              BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_title ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 17, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 4),
-              Text(
-                  '${_completed ? 'Completed' : 'Ongoing'} · All $_total EPs',
-                  style: const TextStyle(fontSize: 13, color: Colors.white60)),
-              const SizedBox(height: 12),
-              SeasonedEpisodeGrid(
-                episodes: _episodes,
-                dramaCoverUrl: _dramaCover,
-                dramaTitle: _title ?? '',
-                currentIndex: _index,
-                onTap: (i) {
-                  Navigator.of(ctx).pop();
-                  _page.jumpToPage(i);
-                },
-              ),
-            ]),
-          ),
-        ),
+      builder: (ctx) => EpisodesPanel(
+        title: _title ?? '',
+        completed: _completed,
+        total: _total,
+        episodes: _episodes,
+        dramaCoverUrl: _dramaCover,
+        currentIndex: _index,
+        onTap: (i) {
+          Navigator.of(ctx).pop();
+          _page.jumpToPage(i);
+        },
       ),
     );
+  }
+
+  /// Loading state shows the drama's real cover (from the cached /dramas
+  /// list) under the spinner instead of a bare dark screen.
+  Widget _loadingWithCover() {
+    final list = ref.read(dramaListProvider).valueOrNull ?? const <Drama>[];
+    final d = list.where((x) => x.id == widget.dramaId).firstOrNull;
+    if (d == null || d.coverUrl.isEmpty) return const PlayerLoadingView(message: 'Loading drama…');
+    return Stack(key: const ValueKey('player-loading-cover'), fit: StackFit.expand, children: [
+      EpisodeCover(dramaCoverUrl: d.coverUrl, title: d.title, showFallbackTitle: false, decodeWidth: 720),
+      const PlayerLoadingView(message: 'Loading drama…', transparent: true),
+    ]);
   }
 
   Player? get _currentPlayer {
@@ -529,7 +522,7 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
       return PlayerErrorView(message: _loadError!, onRetry: _load);
     }
     return _episodes.isEmpty
-        ? const PlayerLoadingView(message: 'Loading drama…')
+        ? _loadingWithCover()
         : PageView.builder(
             controller: _page,
             scrollDirection: Axis.vertical,
@@ -638,6 +631,9 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
           onSave: () => _toggleSave(i),
           onShare: () => _share(i),
           onEpisodes: _showEpisodes,
+          onInfoHeight: (h) {
+            if (mounted && (h - (_infoH ?? -1)).abs() > 0.5) setState(() => _infoH = h);
+          },
           onFullscreen: () => setState(() => _immersive = true),
           translation: SeeTranslationLink(settings: _subs, onPick: _pickSubs),
           progress:
@@ -667,9 +663,67 @@ class _EpisodeFeedPageState extends ConsumerState<EpisodeFeedPage> {
             enabled: _subs.enabled,
             bottom: _immersive
                 ? kSubtitleBottomImmersive
-                : kSubtitleBottomFromScreen +
-                    (_synopsisOpen ? kSynopsisExtra : 0)),
+                : (_infoH == null
+                    ? kSubtitleBottomFromScreen + (_synopsisOpen ? kSynopsisExtra : 0)
+                    : subtitleBottomAbove(infoBottom: kPlayerInfoBottom, infoHeight: _infoH!))),
     ]);
+  }
+}
+
+/// Episodes sheet body: title, status line and the season-grouped grid.
+class EpisodesPanel extends StatelessWidget {
+  const EpisodesPanel({
+    super.key,
+    required this.title,
+    required this.completed,
+    required this.total,
+    required this.episodes,
+    required this.dramaCoverUrl,
+    required this.currentIndex,
+    required this.onTap,
+  });
+  final String title;
+  final bool completed;
+  final int total;
+  final List<EpisodeItem> episodes;
+  final String dramaCoverUrl;
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final h = MediaQuery.sizeOf(context).height;
+    return SafeArea(
+      child: SizedBox(
+        key: const ValueKey('episodes-panel'),
+        width: double.infinity,
+        // Explicit height: the sheet never collapses to an empty strip.
+        height: (h * 0.62).clamp(280.0, 640.0),
+        child: ListView(padding: const EdgeInsets.all(16), children: [
+          Text(title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
+          const SizedBox(height: 4),
+          Text('${completed ? 'Completed' : 'Ongoing'} · All $total EPs',
+              style: const TextStyle(fontSize: 13, color: Colors.white60)),
+          const SizedBox(height: 12),
+          if (episodes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: Text('No episodes yet', style: TextStyle(color: Colors.white60))),
+            )
+          else
+            SeasonedEpisodeGrid(
+              episodes: episodes,
+              dramaCoverUrl: dramaCoverUrl,
+              dramaTitle: title,
+              currentIndex: currentIndex,
+              onTap: onTap,
+            ),
+        ]),
+      ),
+    );
   }
 }
 
@@ -752,6 +806,9 @@ class PlayerTapLayer extends StatelessWidget {
 /// Above the bottom info block (title, synopsis, translation, AI note,
 /// progress, Episodes bar). Measured in tests: subtitle never overlaps it.
 const kSubtitleBottomFromScreen = 236.0;
+
+/// Bottom inset of the player info block (title, synopsis, Episodes bar).
+const kPlayerInfoBottom = 8.0;
 const kSynopsisExtra = 90.0;
 const kSubtitleBottomImmersive = 64.0;
 const kSubtitleStyle = TextStyle(
@@ -771,7 +828,7 @@ SubtitleViewConfiguration playerSubtitleConfig(double letterboxGap) =>
     const SubtitleViewConfiguration(visible: false);
 
 /// Shows [child] (cover) ABOVE the Video until [pooled] is ready.
-/// Ready signals: width>0, height>0 or position>0 (a frame really exists). On ready returns
+/// Ready signal: playback position advancing (a frame is really on screen). On ready returns
 /// [SizedBox.shrink] so the poster is removed from the Stack — not hidden
 /// via opacity. On failure/timeout shows error + Retry instead of a stuck cover.
 class FirstFramePoster extends StatelessWidget {
@@ -973,6 +1030,7 @@ class PlayerChrome extends StatelessWidget {
     this.onSave,
     this.onShare,
     this.onEpisodes,
+    this.onInfoHeight,
     this.onFullscreen,
     this.translation,
     this.progress,
@@ -999,6 +1057,9 @@ class PlayerChrome extends StatelessWidget {
   final VoidCallback? onSave;
   final VoidCallback? onShare;
   final VoidCallback? onEpisodes;
+
+  /// Reports the info block height so subtitles stay above it.
+  final ValueChanged<double>? onInfoHeight;
   final VoidCallback? onFullscreen;
   final Widget? translation;
   final Widget? progress;
@@ -1033,14 +1094,14 @@ class PlayerChrome extends StatelessWidget {
             key: const ValueKey('player-save'),
             icon: Icons.star_rounded,
             color: saved ? AppColors.gold : Colors.white,
-            label: _fmtCount(saveCount),
+            label: compactCount(saveCount),
             onTap: onSave,
           ),
           const SizedBox(height: 14),
           PlayerRailButton(
             key: const ValueKey('player-comment'),
             icon: Icons.chat_bubble_rounded,
-            label: _fmtCount(commentCount),
+            label: compactCount(commentCount),
             onTap: onComment,
           ),
           const SizedBox(height: 14),
@@ -1048,7 +1109,7 @@ class PlayerChrome extends StatelessWidget {
             key: const ValueKey('player-like'),
             icon: Icons.favorite,
             color: liked ? const Color(0xFFFE2C55) : Colors.white,
-            label: _fmtCount(likeCount),
+            label: compactCount(likeCount),
             onTap: onLike,
           ),
           const SizedBox(height: 14),
@@ -1064,8 +1125,10 @@ class PlayerChrome extends StatelessWidget {
       Positioned(
         left: 12,
         right: 12,
-        bottom: 8,
-        child: Column(
+        bottom: kPlayerInfoBottom,
+        child: MeasureSize(
+          onHeight: (h) => onInfoHeight?.call(h),
+          child: Column(
           key: const ValueKey('player-info'),
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -1194,14 +1257,11 @@ class PlayerChrome extends StatelessWidget {
             ]),
           ],
         ),
+        ),
       ),
     ]);
   }
 
-  static String _fmtCount(int n) {
-    if (n >= 10000) return '${(n / 1000).toStringAsFixed(1)}K';
-    return '$n';
-  }
 }
 
 /// Reward widget: red-packet coin icon, wallet balance, small "Claim" pill.
