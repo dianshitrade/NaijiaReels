@@ -78,6 +78,14 @@ void main() {
     debugPrint('SHOP: list=${find.byKey(const ValueKey('shop-list')).evaluate().isNotEmpty} '
         'countdown=${find.byKey(const ValueKey('countdown-pk_coins_first')).evaluate().isNotEmpty}');
     await shot('hongguo_shop', settle: 2500);
+    // --- Rewards ---
+    await t.tap(find.text('Rewards').last);
+    for (var i = 0; i < 30 && find.byKey(const ValueKey('rewards-list')).evaluate().isEmpty; i++) {
+      await wait(500);
+    }
+    debugPrint('REWARDS: list=${find.byKey(const ValueKey('rewards-list')).evaluate().isNotEmpty} '
+        'balances=${find.byKey(const ValueKey('rewards-balances')).evaluate().isNotEmpty}');
+    await shot('hongguo_rewards', settle: 2500);
     await t.tap(find.text('Theater').last);
     await wait(800);
     final poster = find.byKey(const ValueKey('first-frame-poster'));

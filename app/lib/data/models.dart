@@ -498,3 +498,118 @@ String formatNaira(int kobo) {
   final k = kobo % 100;
   return k == 0 ? '₦$s' : '₦$s.${k.toString().padLeft(2, '0')}';
 }
+
+/// Contract `RewardDay` (newbie7Day / checkin7Day days[]).
+class RewardDay {
+  const RewardDay({required this.day, required this.rewardCoins, required this.status, this.taskId});
+  final int day;
+  final int rewardCoins;
+  final String status; // locked | claimable | claimed | missed
+  final String? taskId;
+  factory RewardDay.fromJson(Map<String, dynamic> j) => RewardDay(
+      day: (j['day'] as num).toInt(),
+      rewardCoins: (j['rewardCoins'] as num).toInt(),
+      status: j['status'] as String,
+      taskId: j['taskId'] as String?);
+}
+
+/// Contract `RewardTask` (bingeStreak / dramaCompletion[]).
+class RewardTask {
+  const RewardTask({
+    required this.taskId,
+    required this.title,
+    required this.rewardCoins,
+    required this.progress,
+    required this.target,
+    required this.status,
+    this.dramaId,
+  });
+  final String taskId;
+  final String title;
+  final int rewardCoins;
+  final int progress;
+  final int target;
+  final String status; // in_progress | claimable | claimed
+  final String? dramaId;
+  factory RewardTask.fromJson(Map<String, dynamic> j) => RewardTask(
+      taskId: j['taskId'] as String,
+      title: j['title'] as String,
+      rewardCoins: (j['rewardCoins'] as num).toInt(),
+      progress: (j['progress'] as num).toInt(),
+      target: (j['target'] as num).toInt(),
+      status: j['status'] as String,
+      dramaId: j['dramaId'] as String?);
+}
+
+/// Contract `Chest`.
+class RewardChest {
+  const RewardChest({
+    required this.id,
+    required this.taskId,
+    required this.status,
+    this.unlockAt,
+    this.progress,
+    this.target,
+    this.rewardCoinsMin = 0,
+    this.rewardCoinsMax = 0,
+  });
+  final String id;
+  final String taskId;
+  final String status; // locked | unlocking | claimable | claimed
+  final DateTime? unlockAt;
+  final int? progress;
+  final int? target;
+  final int rewardCoinsMin;
+  final int rewardCoinsMax;
+  factory RewardChest.fromJson(Map<String, dynamic> j) => RewardChest(
+      id: j['id'] as String,
+      taskId: j['taskId'] as String,
+      status: j['status'] as String,
+      unlockAt: j['unlockAt'] == null ? null : DateTime.parse(j['unlockAt'] as String),
+      progress: (j['progress'] as num?)?.toInt(),
+      target: (j['target'] as num?)?.toInt(),
+      rewardCoinsMin: (j['rewardCoinsMin'] as num?)?.toInt() ?? 0,
+      rewardCoinsMax: (j['rewardCoinsMax'] as num?)?.toInt() ?? 0);
+}
+
+/// Contract `RewardsSummary` (GET /rewards/summary).
+class RewardsSummary {
+  const RewardsSummary({
+    required this.balanceCoins,
+    required this.cashKobo,
+    required this.newbie7Day,
+    required this.checkinStreak,
+    required this.todayChecked,
+    required this.checkin7Day,
+    required this.bingeStreak,
+    required this.dramaCompletion,
+    required this.chests,
+  });
+  final int balanceCoins;
+  final int cashKobo; // display-only
+  final List<RewardDay>? newbie7Day; // null once done
+  final int checkinStreak;
+  final bool todayChecked;
+  final List<RewardDay> checkin7Day;
+  final RewardTask? bingeStreak;
+  final List<RewardTask> dramaCompletion;
+  final List<RewardChest> chests;
+
+  factory RewardsSummary.fromJson(Map<String, dynamic> j) {
+    List<T> l<T>(Object? v, T Function(Map<String, dynamic>) f) =>
+        [for (final x in (v as List? ?? const [])) f(x as Map<String, dynamic>)];
+    final n = j['newbie7Day'] as Map<String, dynamic>?;
+    final c = j['checkin7Day'] as Map<String, dynamic>;
+    return RewardsSummary(
+      balanceCoins: (j['balanceCoins'] as num).toInt(),
+      cashKobo: (j['cashKobo'] as num).toInt(),
+      newbie7Day: n == null ? null : l(n['days'], RewardDay.fromJson),
+      checkinStreak: (c['streak'] as num).toInt(),
+      todayChecked: c['todayChecked'] as bool,
+      checkin7Day: l(c['days'], RewardDay.fromJson),
+      bingeStreak: j['bingeStreak'] == null ? null : RewardTask.fromJson(j['bingeStreak'] as Map<String, dynamic>),
+      dramaCompletion: l(j['dramaCompletion'], RewardTask.fromJson),
+      chests: l(j['chests'], RewardChest.fromJson),
+    );
+  }
+}

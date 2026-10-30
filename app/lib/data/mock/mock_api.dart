@@ -353,8 +353,12 @@ class MockApi {
     return {'dramaId': dramaId, 'reminderSet': on, 'releaseAt': releaseAt?.toUtc().toIso8601String()};
   }
 
-  /// POST /api/v1/rewards/{taskId}/claim → returns false on 40903 (already claimed).
-  Future<bool> claim(String taskId) async => _claimed.add(taskId);
+  /// Legacy helper: true on first claim, false on 40903 (already claimed).
+  Future<bool> claim(String taskId) async {
+    if (_claimed.contains(taskId)) return false;
+    _claimed.add(taskId);
+    return true;
+  }
 
   /// Placeholder prices: every mock package ends in 99 kobo-naira so nobody
   /// mistakes them for real pricing (backend has not set prices yet).
@@ -531,16 +535,123 @@ class MockApi {
     return o;
   }
 
-  /// GET /api/v1/rewards/summary (skeleton; contract field names).
-  Map<String, Object?> rewardsSummary() => const {
-        'balanceCoins': 120,
-        'cashKobo': 25000,
-        'newbie7Day': [],
-        'checkin7Day': [],
-        'bingeStreak': null,
-        'dramaCompletion': [],
-        'chests': [],
+  int _balanceCoins = 245; // contract example
+  final Map<String, int> _claimable = {};
+
+  /// Watch-based progress the mock can bump (tests / demos).
+  int bingeProgress = 6;
+
+  static String _day(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// GET /api/v1/rewards/summary. Shape and values copied from the contract
+  /// example; dates are today's so checkin/binge taskIds stay valid. Claimed
+  /// taskIds (this session) flip to `claimed`.
+  Future<RewardsSummary> rewardsSummary({DateTime? now}) async {
+    final t = (now ?? DateTime.now()).toUtc();
+    final today = _day(t);
+    _claimable.clear();
+    String st(String? id, String s) {
+      if (id != null && _claimed.contains(id)) return 'claimed';
+      return s;
+    }
+
+    Map<String, Object?> day(int d, int c, String s, [String? id]) {
+      final status = st(id, s);
+      if (status == 'claimable' && id != null) _claimable[id] = c;
+      return {'day': d, 'rewardCoins': c, 'status': status, 'taskId': status == 'claimable' ? id : null};
+    }
+
+    Map<String, Object?> task(String id, String title, int c, int p, int target, String? dramaId) {
+      final s = st(id, p >= target ? 'claimable' : 'in_progress');
+      if (s == 'claimable') _claimable[id] = c;
+      return {
+        'taskId': id,
+        'title': title,
+        'rewardCoins': c,
+        'progress': p > target ? target : p,
+        'target': target,
+        'status': s,
+        'dramaId': dramaId
       };
+    }
+
+    final checkinId = 'checkin:$today';
+    final checked = _claimed.contains(checkinId);
+    final unlock1 = t.add(const Duration(hours: 1, minutes: 45));
+    final chest1 = st('chest:ch_1', t.isBefore(unlock1) ? 'unlocking' : 'claimable');
+    final j = <String, Object?>{
+      'balanceCoins': _balanceCoins,
+      'cashKobo': 0, // contract: display-only, always 0 in MVP
+      'newbie7Day': {
+        'days': [
+          day(1, 50, 'claimed'),
+          day(2, 30, 'claimed'),
+          day(3, 30, 'claimable', 'newbie:3'),
+          day(4, 40, 'locked'),
+          day(5, 40, 'locked'),
+          day(6, 50, 'locked'),
+          day(7, 100, 'locked'),
+        ]
+      },
+      'checkin7Day': {
+        'streak': checked ? 4 : 3,
+        'todayChecked': checked,
+        'days': [
+          day(1, 10, 'claimed'),
+          day(2, 10, 'claimed'),
+          day(3, 15, 'claimed'),
+          day(4, 15, 'claimable', checkinId),
+          day(5, 20, 'locked'),
+          day(6, 20, 'locked'),
+          day(7, 50, 'locked'),
+        ]
+      },
+      'bingeStreak': task('binge:$today', 'Watch 10 episodes today', 30, bingeProgress, 10, null),
+      'dramaCompletion': [
+        task('complete:dr_prince', "Finish The Prince's Secret Bride", 100, 40, 40, 'dr_prince'),
+      ],
+      'chests': [
+        {
+          'id': 'ch_1',
+          'taskId': 'chest:ch_1',
+          'status': chest1,
+          'unlockAt': unlock1.toIso8601String(),
+          'progress': null,
+          'target': null,
+          'rewardCoinsMin': 5,
+          'rewardCoinsMax': 50,
+        },
+        {
+          'id': 'ch_2',
+          'taskId': 'chest:ch_2',
+          'status': st('chest:ch_2', 'locked'),
+          'unlockAt': null,
+          'progress': 12,
+          'target': 30,
+          'rewardCoinsMin': 10,
+          'rewardCoinsMax': 100,
+        },
+      ],
+    };
+    if (chest1 == 'claimable') _claimable['chest:ch_1'] = 25;
+    return RewardsSummary.fromJson(j);
+  }
+
+  /// POST /api/v1/rewards/{taskId}/claim → `{taskId, rewardCoins, balanceCoins}`.
+  /// Second call (or not claimable) throws 40903; unknown format 40401.
+  Future<Map<String, Object?>> claimReward(String taskId) async {
+    if (!RegExp(r'^(checkin|newbie|binge|complete|chest):.+$').hasMatch(taskId)) {
+      throw ApiException(40401, 'Not found', status: 404);
+    }
+    if (_claimed.contains(taskId) || !_claimable.containsKey(taskId)) {
+      throw ApiException(kErrAlreadyClaimed, 'Task not claimable', status: 409);
+    }
+    final c = _claimable.remove(taskId)!;
+    _claimed.add(taskId);
+    _balanceCoins += c;
+    return {'taskId': taskId, 'rewardCoins': c, 'balanceCoins': _balanceCoins};
+  }
 }
 
 /// GET /dramas (mocked contract fields), keyed "sort|genre|status".
@@ -558,6 +669,10 @@ final chartsProvider = FutureProvider.autoDispose
 /// GET /dramas/coming-soon
 final comingSoonProvider =
     FutureProvider.autoDispose<List<ComingSoonDrama>>((ref) => ref.watch(mockApiProvider).comingSoon());
+
+/// GET /rewards/summary
+final rewardsSummaryProvider =
+    FutureProvider.autoDispose<RewardsSummary>((ref) => ref.watch(mockApiProvider).rewardsSummary());
 
 /// GET /shop/packages
 final shopPackagesProvider =
